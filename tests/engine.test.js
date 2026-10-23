@@ -7,9 +7,10 @@ const REQUIRED = ['entrance', 'first-stairwell', 'repeating-corridor', 'room-214
 const key = (scene, id) => `${scene}:${id}`;
 const door = (scene, id) => SCENES[scene].doors.find(d => d.id === id);
 const faceDoor = (state, sceneId, d) => {
-  const { x, z } = doorPosition(SCENES[sceneId], d);
-  state.player.x = d.wall === 'north' ? x : d.wall === 'south' ? x : d.wall === 'east' ? 9 : 3;
-  state.player.z = d.wall === 'north' ? 9 : d.wall === 'south' ? 3 : d.wall === 'east' ? z : z;
+  const scene = SCENES[sceneId];
+  const { x, z } = doorPosition(scene, d);
+  state.player.x = d.wall === 'north' || d.wall === 'south' ? x : d.wall === 'east' ? scene.width - 2 : 2;
+  state.player.z = d.wall === 'north' ? scene.depth - 2 : d.wall === 'south' ? 2 : z;
   const dx = x - state.player.x, dz = z - state.player.z;
   state.player.yaw = Math.atan2(dx, dz);
 };
@@ -31,7 +32,7 @@ test('the ten named hotel locations form a connected, reciprocal, gate-free grap
 
 test('each door has a safe, in-bounds center and every scene has coherent geometry', () => {
   for (const scene of Object.values(SCENES)) {
-    assert.ok(scene.width >= 8 && scene.depth >= 8 && scene.height >= 2.5);
+    assert.ok(scene.width >= 5 && scene.depth >= 8 && scene.height >= 2.5);
     assert.ok(scene.spawn.x > 0.2 && scene.spawn.x < scene.width - 0.2);
     assert.ok(scene.spawn.z > 0.2 && scene.spawn.z < scene.depth - 0.2);
     for (const d of scene.doors) {
@@ -88,14 +89,16 @@ test('aiming selects nearby targets but rejects objects outside angle, range, or
   assert.equal(getTarget(state), null);
   const objState = createState();
   const obj = SCENES.entrance.objects.find(o => o.id === 'lobby-clock');
-  objState.player.x = obj.x; objState.player.z = obj.z - 1; objState.player.yaw = 0;
+  objState.player.x = obj.x; objState.player.z = obj.z - 1; objState.player.yaw = 0; objState.player.pitch=1.2;
   const target = getTarget(objState);
   assert.equal(target?.kind, 'object');
   assert.equal(target?.id, 'lobby-clock');
   assert.ok(target.distance <= 3.25);
   const blocked = createState();
-  blocked.player.x = 2; blocked.player.z = 3.5; blocked.player.yaw = Math.atan2(7, 4.5);
-  assert.notEqual(getTarget(blocked)?.id, 'lobby-directory', 'the reception desk hides the directory behind it');
+  const desk = SCENES.entrance.objects.find(o => o.id === 'reception-desk');
+  const bell = SCENES.entrance.objects.find(o => o.id === 'reception-bell');
+  blocked.player.x = desk.x; blocked.player.z = desk.z - 1.8; blocked.player.yaw = 0;
+  assert.notEqual(getTarget(blocked)?.id, bell.id, 'the reception desk hides the bell on its far side');
 });
 
 test('doors open first, close explicitly, then transition on second interaction to safe spawn', () => {
@@ -204,4 +207,12 @@ test('restart clears exploration state and malformed targets return none without
     assert.doesNotThrow(() => interact(state, target));
   }
   assert.equal(interact(state, { kind: 'object', id: '__bad__' }).type, 'none');
+});
+
+test('a mounted clock requires upward aim and does not steal the level doorway target',()=>{
+ const state=createState(),d=SCENES.entrance.doors.find(d=>d.id==='north-stair');
+ faceDoor(state,'entrance',d);
+ assert.equal(getTarget(state)?.kind,'door');
+ state.player.pitch=1.2;
+ assert.equal(getTarget(state)?.id,'lobby-clock');
 });

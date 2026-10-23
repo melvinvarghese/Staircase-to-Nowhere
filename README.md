@@ -1,107 +1,99 @@
 # The Staircase to Nowhere
 
-An empty hotel, ten impossible places, and no hurry. **The Staircase to Nowhere** is a quiet, low-poly, stylized 2.5D exploration experience. You walk around each room and choose doors to move between rooms; it is not a full 3D physics game. There are no enemies or required puzzles. A small mystery gathers around memory, rooms that seem to remember earlier visits, and the recurring time **2:14**. You can simply wander without trying to solve it.
+An abandoned hotel outside ordinary time. The reception desk is too far away. The clocks agree on 2:14. A suitcase is not where you left it.
 
-## Enter the building
+Walk at your own pace through a quiet first-person architectural experience. There are no enemies, jump scares, required puzzles, or objectives to complete. The small mystery is optional.
 
-Open the experience in a modern browser and choose **Enter the Building**. No account, download, or technical setup is needed. Sound is off until you opt in. If the visual view is unavailable, choose **Explore the building** to navigate rooms and inspect details using buttons instead.
+**This redesign is a local review version, not a published release.** The [existing live site](https://melvinvarghese.github.io/Staircase-to-Nowhere/) still shows the original version. Publication requires the owner's explicit approval; nothing in this branch changes GitHub Pages settings.
 
-### Controls
+## Enter and wander
 
-| Action | Mouse and keyboard | Touch |
+Choose **Enter the building**. The opening is a view of the hotel itself, not a dashboard. Explore its high reception hall, long guest wing, service passages, stairs, flooded landing and unlisted floor. Returning to a place can change the room number, luggage or evidence waiting at reception.
+
+| Action | Keyboard and mouse | Touch |
 | --- | --- | --- |
-| Walk | **W A S D** or **↑ / ↓** forward and back | Move the left joystick |
-| Turn | **← / →** | Drag the scene to look around |
-| Look around | Drag the scene | Drag the scene, separately from the joystick |
-| Inspect or use an aimed door | **E** or click the on-screen interaction button; clicking the scene also interacts | Use the on-screen interaction button |
-| Close an aimed open door | **C** | Use the exploration choices when available |
-| Pause / open controls | **Escape** or **Pause / controls** | Tap **Pause / controls** |
+| Walk | **W A S D**, or **↑ / ↓** forward and back | Left movement control |
+| Turn | **← / →**, or drag the view | Drag the view |
+| Look up and down | Drag the view | Drag the view |
+| Inspect or use an aimed door | **E**, click the view, or the interaction button | Interaction button |
+| Close an aimed door | **C** | Pause, then exploration choices |
+| Pause | **Escape** or **Pause / controls** | **Pause / controls** |
+| Leave | Pause, then **Leave the building** | Same |
 
-A door opens first; interact with it again to pass through. When aiming is awkward or unavailable, pause and choose **Explore without aiming**. Its room description and real buttons let you inspect objects and choose exits. Optional mouse capture is available in the pause menu; **Escape** releases it and returns to the pause menu. Ordinary drag-to-look works without capture.
+A door opens on the first interaction. Interact again, or walk through the opening, to enter the next space. Stairs raise the camera as you climb. Door thresholds and stair tops intentionally transition between authored spaces; this is not a continuously streamed building or a full physics simulation.
 
-## Comfort and preferences
+If aiming is uncomfortable, pause and choose **Explore without aiming**. Real buttons list the exits and inspectable objects. The same mode works when 3D graphics are unavailable. Optional mouse capture is in the pause menu; **Escape** releases it. Dragging works without capture.
 
-Open **Controls & accessibility** before entering, or **Pause / controls** while exploring.
+## Comfort and privacy
 
-- **Ambient sound** is optional and off by default. The soft sound is made in the browser.
-- **Reduce motion** follows your device's reduced-motion preference by default. You can change it independently; it suppresses decorative motion and transition effects.
-- **Subtle light flicker** is optional and off by default. It is disabled while reduced motion is on.
-- **Graphics** offers **Low power** (the default) and **More detail**. Low power caps the canvas at about 30 frames per second while moving and about 550,000 pixels; More detail caps it at about 45 frames per second and 1.2 million pixels. These are configured limits, not measured performance promises.
+Sound is **off on every fresh visit**, including after a reload. Opt in using **Sound off** or the ambient-sound checkbox. The restrained hum and ventilation are synthesized locally, and suspended while muted, paused or hidden.
 
-Rendering stops while you are idle, paused, or the tab is hidden. Preferences are saved only in this browser on this device; **Reset preferences** restores defaults. They are not an account or a save file. Refreshing starts at the lobby. **Start again at reception** resets your current visit, including collected clues and open doors, but keeps your preferences.
+The operating system's reduced-motion preference takes priority over stored settings. There is no camera bobbing, automatic camera travel, rapid flashing or animated post-processing. You can also turn on **Reduce motion** in the controls. Moving and looking still respond directly to your input.
 
-## The ten places
+**Low power** is the default graphics mode. Rendering has a 30-frame-per-second ceiling while moving, a 900-pixel width ceiling and a 550,000-pixel backing-area ceiling. **More detail** permits up to 45 frames per second and 1.2 million pixels. Device pixel ratio does not multiply these limits. When a known software graphics driver is detected, Low power automatically drops to a 12-frame ceiling, at most 480 pixels wide and 140,000 pixels in area. The controls explain this softer view; More detail is still an explicit opt-in. These are ceilings, not guaranteed frame rates.
 
-The connected locations are:
+The scene stops drawing completely when idle, paused or hidden. The renderer keeps one current room mesh, not an ever-growing cache. No engine download, external font, photograph, video, analytics, account, backend, paid API or database is required. Preferences stay in local browser storage when available. There is no saved game: refreshing resets exploration. **Start again at reception** clears open doors and clues; **Leave the building** returns to the entrance screen without resetting the current visit.
 
-1. `entrance` — The Remembered Lobby
-2. `first-stairwell` — First Stairwell
-3. `repeating-corridor` — Repeating Corridor
-4. `room-214` — Room 214
-5. `service-corridor` — Service Corridor
-6. `elevator-hall` — Elevator Hall
-7. `flooded-landing` — Flooded Landing
-8. `windowless-floor` — Windowless Floor
-9. `impossible-staircase` — Impossible Staircase
-10. `unlisted-floor` — Unlisted Floor
+## What makes the view different
 
-There is no required order. Clocks, notes, room numbers, and familiar objects hint at what the building remembers; revisiting a place may subtly change a few details. The story is meant to remain open to interpretation.
+A small original WebGL renderer gives the environment real perspective, depth-tested surfaces and a first-person camera. Architectural meshes, procedural surface variation, static pools of light and distance haze replace the old uniformly outlined software view. The world is stylized, not photorealistic. Floodwater uses a bounded mirrored view with static ripple distortion rather than a fluid simulation.
 
-## For the project owner
+The design concentrates on proportions, material differences and composed sightlines instead of adding more rooms. The existing ten-location network and accessible exploration controls are preserved.
 
-You do not need to install anything to use the experience. The project runs locally in a browser, with no runtime package dependencies, external services, tracking, or accounts.
-
-### Project map
+## Project map
 
 ```text
-index.html          Entry screen and menus
-styles.css          Layout and visual styling
-js/app.js           Input, menus, accessibility, and app lifecycle
-js/world.js         The ten locations, their doors, objects, descriptions, and clues
-js/engine.js        Walking, interaction, and room transitions
-js/renderer.js      Canvas drawing
-js/audio.js         Optional locally generated ambience
-js/preferences.js   Locally saved comfort and graphics preferences
-assets/             Small project artwork (favicon)
-tests/              Automated checks
+index.html             Entry, controls, text alternative and dialogs
+styles.css             Responsive interface and focus states
+js/app.js              Input, pause/leave, preferences and rendering lifecycle
+js/world.js            Architecture, exits, objects and return-visit changes
+js/engine.js           Collision, walking, stairs, targeting and interactions
+js/renderer.js         Shared architectural geometry and legacy projection helpers
+js/webgl-renderer.js   Depth-tested renderer, materials and world-space labels
+js/audio.js            Optional browser-generated ambience
+js/preferences.js      Local comfort preferences
+assets/                Small favicon; no downloaded runtime media
+tests/                 Logic, browser, accessibility and resource checks
 ```
 
-### Run or check it locally
+## Development checks
 
-If you want to preview the project on your computer, open a terminal in the project folder and run:
+No build step or runtime package installation is needed. For a local developer preview:
 
 ```bash
 python3 -m http.server 4173
 ```
 
-Then visit <http://localhost:4173>. Stop the local server with **Ctrl+C**. This serves the files as-is; it does not install anything. With Node.js 22 or newer, the built-in unit checks can be run separately:
+Open `http://localhost:4173/`. For dependency-free logic tests, use Node.js 22 or newer:
 
 ```bash
 npm test
 ```
 
-The browser-based development checks are optional and are not needed to play. They require Python Playwright and a Chromium browser (by default `/usr/bin/chromium`; set `CHROMIUM_PATH` if it is elsewhere). With the local server running, use:
+Browser checks require development-only Python Playwright and Chromium. They accept a base URL, including a GitHub Pages-style project subpath:
 
 ```bash
-python3 tests/browser_test.py
-python3 tests/performance_test.py
-python3 tests/interaction_test.py
+python3 tests/browser_test.py http://localhost:4173/
+python3 tests/interaction_test.py http://localhost:4173/
+python3 tests/performance_test.py http://localhost:4173/
+python3 tests/overhaul_test.py http://localhost:4173/
+python3 tests/visual_test.py http://localhost:4173/
+# Optional-detail comparison, saved separately:
+python3 tests/visual_test.py http://localhost:4173/ high
 ```
 
-For the optional automated accessibility scans, install `axe-core` as development tooling (`npm install --no-save --package-lock=false axe-core`), or set `AXE_PATH` to an existing local `axe.min.js`. Without it, the scripts explicitly report those scans as skipped. Those scripts and their browser tooling are for development only, not visitors. Real mobile devices and screen-reader hardware have not yet been tested. See [`docs/TESTING.md`](docs/TESTING.md) for the measured results, regression coverage, and honest testing limits.
+Set `CHROMIUM_PATH` when Chromium is not at `/usr/bin/chromium`. Optional axe scans use a local development-only `axe.min.js`: set `AXE_PATH`, or install `axe-core` without saving it as a runtime dependency. Missing axe is explicitly reported as skipped. Visitor pages never load the testing tools. See [the testing notes](docs/TESTING.md) for checks actually performed and their limitations.
 
-### Add a room or clue
+## Future changes
 
-For ordinary world-content changes, start in **`js/world.js`**: that is where rooms, connections, inspectable objects, descriptions, and clues are defined. Follow the existing room and object shapes, give each new location a unique scene ID, and connect it with doors to existing locations. The shared movement and rendering systems are in `js/engine.js` and `js/renderer.js`; adding a room should not require rewriting them. Ask for help before changing those shared systems.
+Ordinary room and clue changes belong in `js/world.js`. Keep exits connected, respect collision bounds and safe spawns, and use concise environmental clues. Renderer or engine changes need regression tests and a real visual check.
 
-You can reuse this prompt with Cue or another coding assistant:
+A reusable request for Cue:
 
-> Please add the following room or clue to The Staircase to Nowhere: **[describe the idea]**. Preserve the existing quiet, nonviolent, optional-mystery experience and its accessible exploration choices. For a content addition, make the smallest appropriate change in `js/world.js`; follow its existing scene, door, and object patterns, keep all ten existing locations and their connections working, and do not rewrite the engine or renderer. Run `npm test` and test navigation through every door route in both directions; report exactly what you ran and any failures. Do not claim unrun checks passed. Do not commit or push, and never force-push.
+> Please improve this room or clue: **[describe it]**. Preserve the quiet atmosphere, low RAM and processor use, graphics-free exploration and all existing routes. Check the actual rendered desktop/mobile view, run all logic and browser tests, and report only verified results. Work on a local review branch. Do not push, merge or publish until I review and explicitly approve publication. Never force-push.
 
-## Publishing status
+## Limits
 
-The repository is configured for GitHub Pages to publish from the root of its `main` branch. The live experience is <https://melvinvarghese.github.io/Staircase-to-Nowhere/>. GitHub Pages built the implementation commit successfully, and the deployed site passed the desktop/mobile browser acceptance suite. See [`docs/TESTING.md`](docs/TESTING.md) for the verified revision, test coverage, and measured resource use.
+WebGL availability depends on the browser and device; the text alternative is intentional. Real-phone performance, Safari/iOS and full screen-reader use require hardware testing beyond browser emulation. Automated accessibility checks cannot establish complete WCAG conformance. JavaScript heap measurements do not include the whole browser, GPU or operating system.
 
-## What this is—and is not
-
-This is a deliberately small browser experience, not a full 3D engine. There is no saved game: refreshing returns you to the entrance, while comfort preferences remain in local browser storage. No open-source license is asserted here; check with the project owner before reusing or redistributing the project.
+No open-source license is asserted for this project. Check with the owner before reusing or redistributing it.

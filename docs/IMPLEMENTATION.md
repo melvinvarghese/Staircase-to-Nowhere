@@ -1,38 +1,41 @@
-# The Staircase to Nowhere — implementation plan
+# Inside the redesigned hotel
 
-## Design
+## Review only
 
-The owner's attached master brief is the product specification. This is an architectural build, authorized for autonomous design, implementation, tests, commits, and deployment. Use a small custom Canvas 2.5D renderer rather than a large WebGL engine or a sequence of static pictures. Visitors continuously walk within each room; deliberate door and stair transitions connect ten locations. Impossible architecture is expressed through the connections, never unreliable collision geometry.
+This work is on the local branch `review/creative-overhaul`, based on the original `main` release `3f5bbda5bb79059be4783be0417f0ac7c13a3b43`. No push, merge, Pages-setting change or deployment is authorized until the owner reviews and explicitly approves publication. The old implementation and its release evidence remain in Git history.
 
-The visual identity comes from an old hotel's materials: dirty cream #b3ad91, shadow #161b18, faded green #5a6654, carpet #544939, brass #b19d6b, fluorescent #e0e8c7. A Georgia display title resembles a worn hotel register; system sans-serif controls remain readable. The building fills the screen; no cards, navbar, minimap, objectives, or dashboard. Original procedural geometry only; no fetched fonts, images, audio, analytics, or runtime dependencies.
+## Artistic direction
 
-## Shared interfaces
+The hotel is preparing for Guest 214, whose arrival time is 2:14. The opening looks into a tall, columned reception hall; the invitation sits to one side instead of replacing the building with a menu. A long oxblood guest corridor, an overlong guest room, a compressed green service passage, walkable stairs and a cold flooded landing have deliberately different proportions, palettes and floor treatments.
 
-Coordinates: x increases east, z increases north; yaw 0 looks +z, yaw PI/2 looks +x. Room bounds x=0..width, z=0..depth. y is height above floor. Doors use wall north/south/east/west and offset (x on north/south, z on east/west).
+Return visits move the suitcase, change physical room-number labels and reveal the prepared registration card. Inspecting the reception desk itself also reveals the card, so this clue does not depend on aiming at a tiny prop. These changes are optional; nothing is gated behind a puzzle. The existing ten-location route graph is retained rather than deleting working routes. This is a deliberate limitation relative to the brief's preference for fewer spaces, not an increase in room count.
 
-`js/world.js` exports `SCENES` (record), `START_SCENE='entrance'`, `doorPosition(scene,door) -> {x,z}`, and `getScene(id,visits=1) -> scene` (return-visit changes without mutating originals).
+## Rendering choice
 
-Scene: `{id,name,floor,kind,width,depth,height,spawn:{x,z,yaw},colors:{wall,lower,floor,ceiling},doors:[{id,wall,offset,width:1.5,label,to}],objects:[{id,type,x,z,w,d,h,title,text,clue,solid}],description}`. Object types: desk, elevator, directory, clock, telephone, bed, chair, note, mirror, pipe, bench, plant. Extra decorative types are allowed. Optional `stairs:{x,z,width,length,rise,to}` means a walkable ramp represented by stair treads, rising from z to z+length.
+`js/webgl-renderer.js` is a small native WebGL1 renderer. No framework, CDN, remote asset or runtime package is loaded. Depth-tested triangles replace the old painter-sorted Canvas view. `js/renderer.js` builds shared geometry and retains the tested legacy Canvas implementation and projection helpers, but the app selects WebGL, not the legacy renderer. If WebGL cannot initialize, semantic text exploration is offered openly rather than disguising a flat picture as 3D.
 
-`js/engine.js` exports `createState()`, `move(state,{forward,strafe,turn},dt) -> boolean`, `look(state,dx,dy)`, `getTarget(state) -> null|{kind:'door'|'object',id,label,distance}`, `interact(state,target=getTarget(state)) -> {type:'none'|'door'|'transition'|'inspect',title?,text?,clue?}`, `closeDoor(state,id)`, `restart(state)`, `eyeHeight(state)`. State `{sceneId,player:{x,z,yaw,pitch},visits:{},openDoors:{},clues:[]}`. Door keys use sceneId+':'+id. First interaction opens a door, second transitions; approaching an open doorway can also transition. Walls never become pass-through holes. Closed doors are collidable. Return visits alter selected clues and room arrangement. `move` time is capped and substepped to avoid tunneling. Radius at least .2. Objects with solid:true block movement. Targeting is range limited and angle limited, with nearer solids occluding targets.
+The renderer shares the small grain texture across scenes. Each scene uses one packed vertex buffer, a small local canvas texture atlas for world-space labels, and up to eight authored light sources. Materials combine original geometry, world-mapped samples of a fixed 64 × 64 noise texture generated once, distance falloff, restrained ground darkening, haze and room-specific color grading. There is no expensive shadow-map or physically based lighting system. Wall-spill overlay polygons from the legacy renderer are excluded from the WebGL mesh.
 
-`js/renderer.js` exports class `Renderer(canvas,{quality='low'}={})`: `resize(quality?)`, `render(scene,state,{title=false,flicker=false,time=0}={})`, `dispose()`, plus `stats` with last render milliseconds, polygon count, frames. Reads engine-compatible state but imports no engine. Low quality caps resolution to ~900 px wide and ~0.55 megapixels, high to ~1400px and ~1.2MP; no device pixel ratio multiplication. Graceful null-context failure handled by UI. Geometry built/cached only on scene/visit/door state changes; no unbounded cache. Projection near-clips polygons. Ceiling lights, wainscoting, door panels, carpet patterns, furniture, stair treads and railing give spatial depth. Light distance affects colors. Water reflections are restrained, static and local.
+The flooded landing alone uses an extra mirrored-scene pass into a bounded framebuffer, at most 512 × 256 pixels, reduced further in software Low power mode. The reflection samples in screen coordinates with a static ripple distortion. Reflected floor surfaces are discarded, and the render-target texture is never sampled while attached to the active framebuffer. It is not a fluid simulation or an animated water effect.
 
-`js/app.js`: lifecycle, one demand-driven RAF chain capped at 30fps low/45fps high while moving only, input and DOM menus. No rendering while idle/paused/hidden. Gentle title flicker can be a cheap CSS overlay, independently disabled; reduced motion defaults from OS. Keyboard WASD move, arrows move/turn, Q/E? E is reserved for interaction; use Q/Z to turn only if needed, documented. Mouse drag always works; explicit optional pointer lock. Touch left joystick, scene-drag look, clear interact and pause buttons. Native modal dialog with focus restoration. Exploration alternative lists connected exits and inspections as real buttons for screen readers/graphics fallback; no need to visually aim. Web Audio off by default and suspended on pause/hidden, mute always visible. localStorage preferences only, exception safe, reset option.
+Meshes and textures are replaced, not accumulated, when room, visit or door state changes. Framebuffers, depth renderbuffers, textures, buffers and shader programs have explicit cleanup paths. Label atlases are bounded to the available 32 cells. Door plaques use interior-facing bases; a zero component in a side-wall direction must remain zero.
 
-## Execution and checks
+## Space and interaction
 
-- [x] World/engine: write failing Node tests, then implement all ten locations, graph reachability, collision, targeting, doors, stair height, optional mystery and restart. Test routes both directions and revisit changes.
-- [x] Renderer: tests first for near clipping/projection if extracted; build convincing original geometry with finite caches and bounded pixels. Review screenshots in all scene kinds.
-- [x] UI: test title/entry, keyboard movement and look, settings, pause/focus, restart, touch portrait/landscape, alternative exploration, denied pointer lock, storage failure, missing graphics.
-- [x] Run axe accessibility scans; keyboard walkthrough; console/network checks; offline-after-load checks. Measure actual render cost, idle frame count, load weight and heap after repeated traversal. Do not claim real-phone or screen-reader hardware tests.
-- [x] Beginner README: playing, controls, architecture, Pages, adding rooms, reusable Cue prompt, known limitations, test evidence. No invented license.
-- [x] Review diff and independent code review; fix important findings with regression tests. Commit on feat/liminal-hotel, fetch main, fast-forward only when safe, push without force; verify Pages build SHA and live entry/interactions. Set repository description/topics.
+Coordinates use x east, z north and y above the floor. Yaw zero faces +z; yaw π/2 faces +x. Each scene has bounds, safe spawn, connected doors, objects and optional stairs. Objects can specify mounting height `y`; elevated clues and overhead pipes are rendered at that height. Clocks, cards, windows and bells have authored geometry rather than generic fallback blocks.
 
-## Risk review
+The engine retains radius-based, substepped horizontal collision and a stair ramp for camera elevation. Closed doors and solid furniture block movement. A door opens on the first interaction; another interaction or walking through the threshold changes scenes. Stair tops likewise transition to an authored landing. This is real perspective 3D with simplified collision, not a seamless whole-building simulation.
 
-Check corner collision and large time deltas; touch pointer cancellation and multiple fingers; focus trapping and key state after blur; near-plane polygons and graphics unavailable; storage blocked and reduced-motion changes; no idle rendering/audio work; project-subpath and external-network independence.
+Aiming is forgiving at floor level. Props with an explicit mounting height also respect vertical aim, so looking straight at a door cannot accidentally select a clock high above it. Text exploration lists the same exits and objects as ordinary buttons, without an aiming requirement.
 
-## Decisions
+## Low-power lifecycle
 
-The owner explicitly requests independent decisions and no avoidable approval interruptions, so the supplied full brief serves as approved scope. This clean dedicated checkout uses a feature branch instead of an unnecessary second worktree. Keep the legacy Pages source on main and merge only by fast-forward after fresh remote checks. Audio is procedural and opt-in; no media services are used.
+Low power is the default: 30 moving frames per second at most, a 900-pixel backing-width ceiling and a 550,000-pixel area ceiling. More detail raises the limits to 45 frames, 1,400 pixels wide and 1.2 million pixels. Device pixel ratio does not multiply these caps. Known software graphics drivers trigger a smaller Low power budget: at most 480 pixels wide, 140,000 pixels in area and 12 moving frames per second. This is explained beside the graphics choice. More detail remains an explicit opt-in; no driver information is sent anywhere or stored. This detection is best-effort, not a benchmark of unknown hardware.
+
+One demand-driven animation-frame chain handles motion and changed views. It stops when stationary, blocked by a wall, paused, hidden or left. There is no decorative rendering loop, camera bob, flickering overlay, moving shader time or animated post-processing. Held input is cleared after blur and pause. Sound is synthesized locally, always off on a fresh visit, and suspended when muted, paused or hidden.
+
+The OS reduced-motion setting takes priority over a stale stored opt-out. Storage failure cannot prevent entry. Leave releases mouse capture and returns to the invitation without resetting exploration; restart clears exploration. Graphics loss releases mouse capture and offers text navigation. After actual context restoration, graphics redraw but stay paused until deliberate resume.
+
+## Verification boundaries
+
+Node tests cover logic and geometry; browser tests cover real WebGL initialization and errors, interactions, touch emulation, fallback and restoration, accessibility scans, route traversal, screenshots and bounded resource use. See [the testing record](TESTING.md) for measured results and limits. Tests are not a claim of real-phone, Safari/iOS, full-screen-reader or whole-browser-memory validation.

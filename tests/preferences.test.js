@@ -8,7 +8,7 @@ test('blocked or corrupt storage never prevents safe defaults',()=>{
 });
 test('untrusted stored fields cannot increase graphics or enable invalid flags',()=>{
  const p=readPreferences({getItem(){return JSON.stringify({quality:'ultra',audio:'yes',reducedMotion:false,flicker:true,tracking:'bad'})}},true);
- assert.deepEqual(p,{audio:false,reducedMotion:false,flicker:true,quality:'low'});
+ assert.deepEqual(p,{audio:false,reducedMotion:true,flicker:true,quality:'low'});
 });
 test('valid choices round trip locally without extra data',()=>{
  let value; const storage={getItem(){return value},setItem(k,v){value=v}};
@@ -16,4 +16,8 @@ test('valid choices round trip locally without extra data',()=>{
  assert.equal(savePreferences(storage,p),true);
  assert.deepEqual(readPreferences(storage,false),p);
  assert.equal(savePreferences({setItem(){throw Error('quota')}},p),false);
+});
+test('OS motion reduction cannot be disabled by a stale stored preference',()=>{
+ const stored={getItem:()=>JSON.stringify({reducedMotion:false,audio:true})};
+ assert.equal(readPreferences(stored,true).reducedMotion,true);
 });

@@ -6,6 +6,7 @@ export function readPreferences(storage,reducedMotion=false){
   const result=defaults(reducedMotion);
   if(!stored||typeof stored!=='object') return result;
   for(const key of ['audio','reducedMotion','flicker']) if(typeof stored[key]==='boolean') result[key]=stored[key];
+  result.reducedMotion=!!reducedMotion||result.reducedMotion;
   if(stored.quality==='high') result.quality='high';
   return result;
 }

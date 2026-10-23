@@ -151,7 +151,7 @@ function addDoor(out, texts, scene, door, state, w, d, h) {
   if (alongX) addBox(out, cx, 2.03, cz + sideOffset + towardInterior*0.07, 0.66, 0.20, 0.035, HOTEL.brass, { emissive: 0.1 });
   else addBox(out, cx + sideOffset + towardInterior*0.07, 2.03, cz, 0.035, 0.20, 0.66, HOTEL.brass, { emissive: 0.1 });
   const label = String(door.label ?? door.id ?? '').trim().slice(0, 12);
-  if (label) texts.push({ text: label, at: point(cx + (alongX ? 0 : sideOffset + towardInterior*0.1), 2.07, cz + (alongX ? sideOffset + towardInterior*0.1 : 0)), right: alongX ? {x:1,z:0} : {x:0,z:1}, color:'#29241b', size:0.16, width:.6 });
+  if (label) texts.push({ text: label, at: point(cx + (alongX ? 0 : sideOffset + towardInterior*0.1), 2.07, cz + (alongX ? sideOffset + towardInterior*0.1 : 0)), right: alongX ? {x:door.wall==='south'?-1:1,z:0} : {x:0,z:door.wall==='east'?-1:1}, color:'#29241b', size:0.16, width:.6 });
 }
 
 function addWall(out, wall, w, d, h, doors, color, low, bandBottom, bandTop) {
@@ -165,16 +165,16 @@ function addWall(out, wall, w, d, h, doors, color, low, bandBottom, bandTop) {
     if (b-a < 0.02 || y1-y0 < 0.02) return;
     quad(out,wallPoint(wall,a,y0,w,d),wallPoint(wall,b,y0,w,d),wallPoint(wall,b,y1,w,d),wallPoint(wall,a,y1,w,d),c);
   };
-  // Wainscot continues behind each door leaf; upper plaster is cut only to door-head height.
-  face(0,span,0,bandBottom,low);
-  face(0,span,bandBottom+0.07,bandTop,color);
+  // Openings are cut from floor through the lintel: no wainscot or rail infill.
   const cutHeight = Math.min(2.28,h-0.24);
   let cursor=0;
   for(const r of relevant) {
-    face(cursor,r.start,bandTop+0.07,cutHeight,color);
+    face(cursor,r.start,0,cutHeight,low);
+    face(cursor,r.start,bandBottom+0.07,bandTop,color);
     cursor=Math.max(cursor,r.end);
   }
-  face(cursor,span,bandTop+0.07,cutHeight,color);
+  face(cursor,span,0,cutHeight,low);
+  face(cursor,span,bandBottom+0.07,bandTop,color);
   face(0,span,cutHeight,h,color);
   // Architectural baseboard and chair rail terminate at the door opening rather than crossing it.
   for (const [y,thick,c] of [[0.13,0.15,HOTEL.skirting],[0.97,0.075,'#8e7c5b'],[bandBottom+0.055,0.045,'#897553']]) {
@@ -188,22 +188,29 @@ function addWall(out, wall, w, d, h, doors, color, low, bandBottom, bandTop) {
   }
 }
 
-function addCarpet(out, w, d, flooded) {
+function addCarpet(out, w, d, flooded, scene) {
   const inset = 0.34;
-  const base = flooded ? '#3d4540' : HOTEL.carpet;
-  quad(out,point(inset,0.012,inset),point(w-inset,0.012,inset),point(w-inset,0.012,d-inset),point(inset,0.012,d-inset),base);
-  if (flooded) {
-    for (let i=0;i<16;i++) {
-      const z=inset+0.25+i*(d-2*inset)/16, x0=inset+0.4+(i%3)*0.22, x1=w-inset-0.4;
-      quad(out,point(x0,0.025+(i%2)*0.002,z),point(x1,0.025+(i%2)*0.002,z+0.05),point(x1,0.025+(i%2)*0.002,z+0.075),point(x0,0.025+(i%2)*0.002,z+0.025),'rgba(174,190,175,0.11)',{emissive:0.08});
+  const kind=String(scene?.kind||'').toLowerCase(), carpet=['corridor','guestroom','room','unlisted'].includes(kind), color=scene?.colors?.floor||HOTEL.carpet;
+  quad(out,point(0,0.001,0),point(w,0.001,0),point(w,0.001,d),point(0,0.001,d),flooded?'#424b46':color,{surface:'floor'});
+  if(flooded){quad(out,point(inset,0.012,inset),point(w-inset,0.012,inset),point(w-inset,0.012,d-inset),point(inset,0.012,d-inset),'#58635e',{surface:'water'});return;}
+  if(!carpet&&kind!=='corridor') {
+    if(kind==='lobby') {
+      for(let x=3;x<w-.1;x+=3) quad(out,point(x,0.006,.25),point(x+.025,0.006,.25),point(x+.025,0.006,d-.25),point(x,0.006,d-.25),'#706753');
+      for(let z=3;z<d-.1;z+=3) quad(out,point(.25,0.006,z),point(w-.25,0.006,z),point(w-.25,0.006,z+.025),point(.25,0.006,z+.025),'#706753');
     }
     return;
   }
+  const runner=kind==='corridor', left=runner?Math.max(inset,w*.19):inset,right=runner?Math.min(w-inset,w*.81):w-inset;
+  quad(out,point(left,0.012,inset),point(right,0.012,inset),point(right,0.012,d-inset),point(left,0.012,d-inset),color,{surface:'floor'});
   for (const [x,z,ww,dd,c] of [[inset, inset, w-2*inset,0.12,'#857552'],[inset,d-inset-0.12,w-2*inset,0.12,'#857552'],[inset,inset,0.12,d-2*inset,'#857552'],[w-inset-0.12,inset,0.12,d-2*inset,'#857552']]) {
-    quad(out,point(x,0.025,z),point(x+ww,0.025,z),point(x+ww,0.025,z+dd),point(x,0.025,z+dd),c);
+    if(!runner) quad(out,point(x,0.025,z),point(x+ww,0.025,z),point(x+ww,0.025,z+dd),point(x,0.025,z+dd),c);
   }
-  // A restrained, repeating woven medallion motif (dozens of pieces, never thousands).
-  const cols = Math.min(7, Math.max(2, Math.floor(w/1.25))), rows = Math.min(13, Math.max(4, Math.floor(d/1.2)));
+  if(runner){
+    for(const x of [left,left+.08,right-.08,right]) quad(out,point(x,0.025,inset),point(x+.025,0.025,inset),point(x+.025,0.025,d-inset),point(x,0.025,d-inset),'#917c52');
+    return;
+  }
+  // A quiet, small-scale woven repeat belongs to guest carpets rather than every floor.
+  const cols = Math.min(5, Math.max(2, Math.floor(w/1.8))), rows = Math.min(8, Math.max(3, Math.floor(d/2.2)));
   for(let row=0;row<rows;row++) for(let col=0;col<cols;col++) {
     const cx=inset+0.38+(col+0.5)*(w-2*inset-0.76)/cols, cz=inset+0.34+(row+0.5)*(d-2*inset-0.68)/rows;
     const r=Math.min(0.21,(w-2*inset)/cols*0.23,(d-2*inset)/rows*0.24);
@@ -221,7 +228,7 @@ function addCarpet(out, w, d, flooded) {
 function addLight(out, x, z, ceiling, warm=false, width=12) {
   const color=warm?'#d0bd8a':HOTEL.lamp;
   quad(out,point(x-0.62,ceiling-0.035,z-0.19),point(x+0.62,ceiling-0.035,z-0.19),point(x+0.62,ceiling-0.035,z+0.19),point(x-0.62,ceiling-0.035,z+0.19),'#554f42');
-  quad(out,point(x-0.54,ceiling-0.02,z-0.13),point(x+0.54,ceiling-0.02,z-0.13),point(x+0.54,ceiling-0.02,z+0.13),point(x-0.54,ceiling-0.02,z+0.13),color,{emissive:1.25,light:{x,y:ceiling-0.04,z,power:4.8,radius:8}});
+  quad(out,point(x-0.54,ceiling-0.055,z-0.13),point(x+0.54,ceiling-0.055,z-0.13),point(x+0.54,ceiling-0.055,z+0.13),point(x-0.54,ceiling-0.055,z+0.13),color,{emissive:1.25,light:{x,y:ceiling-0.055,z,power:4.8,radius:8}});
   // Pale, subtle pools of fluorescent spill on the nearest wall surfaces.
   for(const wall of ['east','west']) {
     const wallX=wall==='east'?width-.015:.015;
@@ -232,12 +239,23 @@ function addLight(out, x, z, ceiling, warm=false, width=12) {
 function addFurniture(out, texts, object, scene) {
   const x=Number(object.x)||0, z=Number(object.z)||0, w=safeDim(object.w,1), d=safeDim(object.d,0.7), h=safeDim(object.h,1), type=object.type||'cabinet';
   const wood='#604a36', darkwood='#42362a', brass=HOTEL.brass, cream='#9d9276';
-  const box=(ox,oy,oz,bw,bh,bd,c,e)=>addBox(out,x+ox,oy,z+oz,bw,bh,bd,c,e);
+  const baseY=Number(object.y)||0;
+  const box=(ox,oy,oz,bw,bh,bd,c,e)=>addBox(out,x+ox,baseY+oy,z+oz,bw,bh,bd,c,e);
   if(type==='desk') {
     box(0,h*0.72,0,w,h*0.1,d,wood); box(-w*.37,0,-d*.34,w*.13,h*.72,d*.13,darkwood); box(w*.37,0,-d*.34,w*.13,h*.72,d*.13,darkwood);
     box(0,h*.39,-d*.44,w*.78,h*.36,.07,'#67513b'); box(0,h*.72,d*.22,w*.6,.03,.08,brass);
     box(-w*.23,h*.82,0,.3,.1,.22,'#ded4b4'); box(w*.16,h*.82,-d*.16,.13,.18,.12,'#aaa08a');
     box(0,h*.82,d*.38,.26,.05,.13,'#343631');
+  } else if(type==='suitcase') {
+    box(0,.18,0,w,.36,d,'#534537'); box(0,.39,0,w*.88,.07,d*.86,'#705a41');
+    box(-w*.18,.47,0,w*.12,.12,.07,'#a18b5c'); box(w*.18,.47,0,w*.12,.12,.07,'#a18b5c');
+    box(0,.53,-d*.18,w*.32,.045,.06,'#a18b5c');
+  } else if(type==='column') {
+    const radius=Math.min(w,d)*.44, cx=x, cz=z, sides=8;
+    addBox(out,cx,.02,cz,w*1.18,.12,d*1.18,'#655440');
+    for(let i=0;i<sides;i++) { const a=i*Math.PI*2/sides,b=(i+1)*Math.PI*2/sides;
+      quad(out,point(cx+Math.cos(a)*radius,.12,cz+Math.sin(a)*radius),point(cx+Math.cos(b)*radius,.12,cz+Math.sin(b)*radius),point(cx+Math.cos(b)*radius,h-.13,cz+Math.sin(b)*radius),point(cx+Math.cos(a)*radius,h-.13,cz+Math.sin(a)*radius),i%2?'#81785f':'#a69a79'); }
+    addBox(out,cx,h-.16,cz,w*1.18,.13,d*1.18,'#756449'); addBox(out,cx,h-.025,cz,w*1.36,.14,d*1.36,'#9a885f');
   } else if(type==='bed') {
     box(0,.32,0,w*.94,.3,d*.92,'#8b8068'); box(0,.52,-d*.27,w*.9,.17,d*.19,wood); box(0,.5,d*.08,w*.88,.16,d*.58,'#b6ad95');
     box(-w*.25,.65,-d*.22,w*.27,.12,.24,'#d0c5aa'); box(w*.25,.65,-d*.22,w*.27,.12,.24,'#c0b49a');
@@ -256,16 +274,38 @@ function addFurniture(out, texts, object, scene) {
     for(let i=0;i<7;i++) { const a=i*2.399, rr=(i%3)*.09; addBeam(out,point(x,0.42,z),point(x+Math.cos(a)*rr,.85+(i%4)*.12,z+Math.sin(a)*rr),.035,.035,'#42523c');
       const lx=x+Math.cos(a)*rr, lz=z+Math.sin(a)*rr; addBox(out,lx,.82+(i%4)*.12,lz,.22,.13,.08,'#617354'); }
   } else if(type==='telephone') {
+    box(0,0,0,Math.max(w,.5)*.78,.78,Math.max(d,.4)*.78,darkwood);
     box(0,.78,0,.43,.13,.36,wood); box(0,.86,0,.28,.2,.25,'#292b28');
     box(-.27,.87,0,.1,.24,.1,brass); box(.27,.87,0,.1,.24,.1,brass);
     box(0,1.03,-.08,.44,.04,.33,'#d0c7ac');
-  } else if(type==='clock') {
-    box(0,h*.68,0,w*.45,h*.55,.16,darkwood); box(0,h*.68,.095,w*.35,h*.43,.025,'#c4b99b');
-    box(-w*.22,h*.68,.13,.055,h*.15,.025,brass); box(w*.17,h*.68,.13,.04,h*.19,.025,brass);
-    box(0,h*.27,0,w*.24,.07,.17,wood);
+  } else if(type==='clock' || type==='wall-clock') {
+    const radius=Math.min(w,h)*.46,cy=baseY+h*.5,front=z-d*.5-.015;
+    box(0,0,0,w,h,d,darkwood);
+    const ring=[];for(let i=0;i<20;i++){const a=i*Math.PI/10;ring.push(point(x+Math.cos(a)*radius,cy+Math.sin(a)*radius,front));}
+    poly(out,ring,'#c6bea4');
+    const hand=(angle,length,thick)=>{const dx=Math.sin(angle)*length,dy=Math.cos(angle)*length,px=Math.cos(angle)*thick,py=-Math.sin(angle)*thick;
+      quad(out,point(x-px,cy-py,front-.01),point(x+px,cy+py,front-.01),point(x+dx+px,cy+dy+py,front-.01),point(x+dx-px,cy+dy-py,front-.01),'#343c34');};
+    const rotation=String(object.text||'').includes('upside down')?Math.PI:0;
+    hand((2+14/60)*Math.PI/6+rotation,radius*.57,.012);hand(14*Math.PI/30+rotation,radius*.83,.009);
+    texts.push({text:String(object.number||'2:14'),at:point(x,baseY+.015,front-.012),right:{x:1,z:0},color:'#d3c599',size:Math.min(.10,h*.18),width:w*.8});
+  } else if(type==='card') {
+    box(0,0,0,w,h,d,'#d4c8a4');
+    texts.push({text:String(object.number||''),at:point(x,baseY+.012,z-d*.5-.016),right:{x:1,z:0},color:'#463b2b',size:Math.max(.05,h*.72),width:w*.86});
+  } else if(type==='bell') {
+    box(0,0,0,w,.035,d,brass);box(0,.035,0,w*.82,h*.58,d*.82,'#af975e');box(0,h*.58,0,w*.34,h*.2,d*.34,'#c3af74');
+  } else if(type==='window') {
+    const wh=Math.min(h,Math.max(.6,scene.height-baseY-.15));
+    box(0,0,0,w,wh,d,'#675e4d');
+    box(0,.10,-d*.55,w-.18,wh-.2,.025,'#8dafa9',{emissive:.38});
+    for(const xx of [-w*.32,0,w*.32])box(xx,.08,-d*.75,.065,wh-.16,.07,'#b5aa8e');
+    box(0,wh*.5,-d*.76,w-.1,.07,.075,'#a3987d');
   } else if(type==='mirror') {
     box(0,h*.55,0,w,h,.11,wood); box(0,h*.58,.065,w*.77,h*.78,.025,'#66685f',{emissive:.14});
     box(-w*.42,.06,.08,.08,.12,.06,brass); box(w*.42,.06,.08,.08,.12,.06,brass);
+  } else if(type==='mark') {
+    const sw=scene.width,sd=scene.depth,c='#879b91',lo=.16,hi=.18;
+    for(const zz of [.025,sd-.025])quad(out,point(.025,lo,zz),point(sw-.025,lo,zz),point(sw-.025,hi,zz),point(.025,hi,zz),c);
+    for(const xx of [.025,sw-.025])quad(out,point(xx,lo,.025),point(xx,lo,sd-.025),point(xx,hi,sd-.025),point(xx,hi,.025),c);
   } else if(type==='pipe') {
     for(let i=-1;i<=1;i++) { box(i*w*.3,0,0,.1,h,d*.14,'#777767'); box(i*w*.3,h*.8,0,.12,.07,d*.26,'#8b876d'); }
     box(0,h*.43,0,w,.08,d*.22,'#6b6b5c');
@@ -275,7 +315,7 @@ function addFurniture(out, texts, object, scene) {
   } else if(type==='sign') {
     box(0,0,0,.07,h*.65,.07,darkwood); box(0,h*.63,0,w,h*.37,.07,'#c4b99d');
     box(0,h*.82,.05,w*.78,.035,.02,brass);
-    texts.push({text:String(object.text||'').split(/[.\n]/)[0].slice(0,12),at:point(x,h*.82,z-.055),right:{x:1,z:0},color:'#3c3529',size:.13,width:w*.84});
+    texts.push({text:String(object.number||object.text||'').split(/[.\n]/)[0].slice(0,12),at:point(x,baseY+h*.82,z-.055),right:{x:1,z:0},color:'#3c3529',size:.13,width:w*.84});
   } else if(type==='elevator') {
     box(0,0,0,w,h,d,'#77684f'); box(0,.04,d*.51,w*.84,h*.91,.06,'#4e5149');
     box(-w*.22,.06,d*.55,w*.41,h*.87,.025,'#6f725f'); box(w*.22,.06,d*.55,w*.41,h*.87,.025,'#625f4e');
@@ -325,7 +365,7 @@ export function buildSceneGeometry(scene, state = {}) {
   const doors=Array.isArray(scene?.doors)?scene.doors:[], objects=Array.isArray(scene?.objects)?scene.objects:[];
   const kind=String(scene?.kind||'corridor').toLowerCase();
   const flooded=kind==='flooded'||/flood/i.test(String(scene?.floor||''));
-  addCarpet(out,w,d,flooded);
+  addCarpet(out,w,d,flooded,scene);
   quad(out,point(0,h,0),point(w,h,0),point(w,h,d),point(0,h,d),colors.ceiling||'#c8c3ad');
   for(const side of ['south','north','west','east']) addWall(out,side,w,d,h,doors,wall,lower,0.96,1.04);
   // Crown and picture molding are continuous, thin geometry, not flat wall-color rectangles.
@@ -335,6 +375,17 @@ export function buildSceneGeometry(scene, state = {}) {
     quad(out,a,b,c,e,'#867b61');
   }
   for(const door of doors) addDoor(out,texts,scene,door,state,w,d,h);
+  if(['lobby','entrance'].includes(kind)) {
+    // Deep coffer rhythm gives the reception volume an unmistakable civic scale.
+    for(let x=1.5;x<w-0.5;x+=2.4) addBeam(out,point(x,h-.12,.25),point(x,h-.12,d-.25),.12,.16,'#82785f');
+    for(let z=2.1;z<d-.5;z+=2.8) addBeam(out,point(.25,h-.12,z),point(w-.25,h-.12,z),.12,.16,'#82785f');
+  }
+  if(['service','service-corridor'].includes(kind)) {
+    for(const x of [w*.28,w*.5,w*.72]) {
+      addBeam(out,point(x,h-.28,.4),point(x,h-.28,d-.4),.075,.075,'#696a5e');
+      for(let z=1.5;z<d-1;z+=3.4) addBox(out,x,h-.39,z,.12,.1,.12,'#7d795f');
+    }
+  }
   // Fluorescent fixtures repeat along circulation axes; domestic rooms use warmer, smaller pools.
   const warm=['room','guestroom','lobby','service','service-corridor','guest-room'].includes(kind);
   const count=Math.max(1,Math.min(5,Math.floor(d/4.2)));
@@ -353,6 +404,16 @@ export function buildSceneGeometry(scene, state = {}) {
   else if(kind==='stairs'||kind==='stairwell'||kind==='impossible-staircase')
     addStairs(out,{x:w*.54,z:d*.38,width:2,length:Math.min(6,d*.48),rise:1.8});
   for(const object of objects) addFurniture(out,texts,object,scene);
+  if(kind==='corridor' || kind==='service-corridor') {
+    // Shallow flush wall panels establish repetition without suggesting extra exits.
+    const spanCount=Math.min(5,Math.floor(d/4));
+    for(let i=1;i<=spanCount;i++) { const z=i*d/(spanCount+1);
+      for(const side of ['west','east']) if(!doors.some(door=>door.wall===side&&Math.abs(door.offset-z)<1.1)) {
+        const x=side==='west'?.018:w-.018, inward=side==='west'?.018:-.018;
+        addBox(out,x,1.45,z,.028,.74,1.05,'#83775d'); addBox(out,x+inward,1.45,z,.025,.56,.82,'#63533f');
+      }
+    }
+  }
   // Sparse wall details lend scale and age without turning the room into a prop gallery.
   for(let z=3.6, n=0;z<d-.8;z+=5.8,n++) {
     const side=n%2?'west':'east', x=side==='east'?w-.035:.035;
@@ -370,7 +431,7 @@ export function buildSceneGeometry(scene, state = {}) {
   return { polygons: out, texts };
 }
 
-function cameraPoint(world, camera) {
+export function worldToCamera(world, camera) {
   const dx=world.x-camera.x, dy=world.y-camera.y, dz=world.z-camera.z;
   const cy=camera.cy??Math.cos(camera.yaw),sy=camera.sy??Math.sin(camera.yaw);
   const right=dx*cy-dz*sy;
@@ -400,13 +461,10 @@ function normalLight(points) {
   const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,len=Math.hypot(nx,ny,nz)||1;
   return .78 + .27*Math.max(0,(ny/len)*.75 + .42);
 }
-function sceneEyeHeight(scene,state) {
+export function sceneEyeHeight(scene,state) {
   if(Number.isFinite(state?.eyeHeight)) return state.eyeHeight;
-  let elevation=1.62;
   const s=scene?.stairs,p=state?.player;
-  if(s&&p&&Number(s.length)>0&&Math.abs(p.x-(Number(s.x)||0))<=Number(s.width||2)/2&&p.z>=s.z&&p.z<=s.z+s.length)
-    elevation+=Number(s.rise||0)*Math.max(0,Math.min(1,(p.z-s.z)/s.length));
-  return elevation;
+  return 1.62+(s&&p&&Number(s.length)>0&&Math.abs(p.x-(Number(s.x)||0))<=Number(s.width||2)/2&&p.z>=s.z&&p.z<=s.z+s.length ? Number(s.rise||0)*Math.max(0,Math.min(1,(p.z-s.z)/s.length)) : 0);
 }
 
 export class Renderer {
@@ -452,7 +510,7 @@ export class Renderer {
     camera.cy=Math.cos(camera.yaw);camera.sy=Math.sin(camera.yaw);camera.cp=Math.cos(camera.pitch);camera.sp=Math.sin(camera.pitch);
     const draw=[];
     for(const p of geometry.polygons) {
-      const cameraPoly=p.points.map(v=>cameraPoint(v,camera));
+      const cameraPoly=p.points.map(v=>worldToCamera(v,camera));
       const clipped=clipPolygonNearPlane(cameraPoly);
       if(clipped.length<3) continue;
       const projected=clipped.map(v=>projectCameraPoint(v,{width:this.width,height:this.height,focal:this.focal}));
@@ -477,11 +535,11 @@ export class Renderer {
     this.stats.polygons=draw.length; this.stats.frames++;
   }
   drawText(label,camera,options) {
-    const ctx=this.ctx, cp=cameraPoint(label.at,camera);
+    const ctx=this.ctx, cp=worldToCamera(label.at,camera);
     if(cp.z<NEAR) return;
     const p=projectCameraPoint(cp,{width:this.width,height:this.height,focal:this.focal});
     if(p.x<-150||p.x>this.width+150||p.y<-100||p.y>this.height+100) return;
-    const side=cameraPoint({x:label.at.x+(label.right?.x||1)*.35,y:label.at.y,z:label.at.z+(label.right?.z||0)*.35},camera);
+    const side=worldToCamera({x:label.at.x+(label.right?.x||1)*.35,y:label.at.y,z:label.at.z+(label.right?.z||0)*.35},camera);
     const pp=projectCameraPoint(side,{width:this.width,height:this.height,focal:this.focal});
     const angle=Math.atan2(pp.y-p.y,pp.x-p.x);
     const size=Math.max(5,Math.min(22,label.size*this.focal/cp.z));
@@ -491,3 +549,5 @@ export class Renderer {
 
   dispose() { this.cacheKey=''; this.geometry=null; this.disposed=true; this.ctx=null; this.canvas=null; }
 }
+
+export { Renderer as CanvasRenderer };

@@ -148,6 +148,7 @@ function segmentHitsBox(ax, az, bx, bz, object, padding = 0.02) {
 export function getTarget(state) {
   if (!state?.player) return null;
   const scene = activeScene(state), p = state.player;
+  const eye = EYE_LEVEL + rampElevation(scene,p.x,p.z);
   const candidates = [];
   for (const d of scene.doors) {
     const point = doorPosition(scene, d);
@@ -161,7 +162,8 @@ export function getTarget(state) {
   for (const o of scene.objects) {
     const dx = o.x - p.x, dz = o.z - p.z;
     const distance = Math.hypot(dx, dz), angle = Math.atan2(dx, dz);
-    if (distance > 0.05 && distance <= TARGET_RANGE && Math.abs(angleDifference(angle, p.yaw)) <= TARGET_CONE) {
+    const heightMatches = !Number.isFinite(o.y) || Math.abs(Math.atan2(o.y+o.h*.5-eye,distance)-(p.pitch||0)) <= .6;
+    if (heightMatches && distance > 0.05 && distance <= TARGET_RANGE && Math.abs(angleDifference(angle, p.yaw)) <= TARGET_CONE) {
       candidates.push({ kind: 'object', id: o.id, label: o.title, distance, x: o.x, z: o.z });
     }
   }

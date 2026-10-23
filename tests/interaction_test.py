@@ -10,7 +10,7 @@ def check(name,ok):
     assert ok,name
 try:
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox'])
+        browser=p.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox','--enable-unsafe-swiftshader'])
         context=browser.new_context(viewport={'width':1280,'height':800})
         page=context.new_page();page.on('pageerror',lambda e:report['errors'].append(str(e)))
         page.goto(BASE);page.keyboard.press('Enter');page.wait_for_timeout(100)
@@ -53,10 +53,16 @@ try:
         frozen=page.evaluate('window.staircase.snapshot().player');frames=page.evaluate('window.staircase.metrics().frames');page.wait_for_timeout(300)
         check('blur clears held input and rendering',frozen==page.evaluate('window.staircase.snapshot().player') and frames==page.evaluate('window.staircase.metrics().frames'))
         click_context=browser.new_context(viewport={'width':1280,'height':800})
-        c=click_context.new_page();c.goto(BASE);c.get_by_role('button',name='ENTER THE BUILDING',exact=True).click();c.locator('#scene').focus()
-        c.keyboard.down('w');c.wait_for_timeout(4000);c.keyboard.up('w');c.wait_for_timeout(100)
+        c=click_context.new_page();c.goto(BASE);c.get_by_role('button',name='Enter the building',exact=True).click();c.locator('#scene').focus()
+        c.keyboard.down('w')
+        north_limit=c.evaluate("async()=>{const {SCENES}=await import('./js/world.js');return SCENES.entrance.depth-.3}")
+        c.wait_for_function('limit=>window.staircase.snapshot().player.z>=limit',arg=north_limit,timeout=20000)
+        c.wait_for_timeout(200)
+        c.keyboard.up('w');c.wait_for_timeout(100)
         check('a door can be aimed after walking to it',c.locator('#interaction-label').inner_text().startswith('Open '))
-        wall_frames=c.evaluate('window.staircase.metrics().frames');c.keyboard.down('w');c.wait_for_timeout(500);c.keyboard.up('w');c.wait_for_timeout(100)
+        wall_frames=c.evaluate('window.staircase.metrics().frames');c.keyboard.down('w');c.wait_for_timeout(500)
+        check('blocked movement also stops animation callbacks',not c.evaluate('window.staircase.metrics().rafPending'))
+        c.keyboard.up('w');c.wait_for_timeout(100)
         check('walking against a solid wall does not keep redrawing',c.evaluate('window.staircase.metrics().frames')-wall_frames<=1)
         c.get_by_role('button',name='Pause / controls',exact=True).click();c.get_by_role('button',name='Enable mouse capture',exact=True).click();c.wait_for_timeout(100)
         if c.evaluate('document.pointerLockElement?.id')=='scene':
@@ -68,7 +74,7 @@ try:
         click_context.close()
         # A denied lock is an expected browser restriction, never a dead end.
         denied=browser.new_context();denied.add_init_script('HTMLCanvasElement.prototype.requestPointerLock=()=>Promise.reject(new Error("Denied"))')
-        d=denied.new_page();d.goto(BASE);d.get_by_role('button',name='ENTER THE BUILDING',exact=True).click();d.get_by_role('button',name='Pause / controls',exact=True).click();d.get_by_role('button',name='Enable mouse capture',exact=True).click()
+        d=denied.new_page();d.goto(BASE);d.get_by_role('button',name='Enter the building',exact=True).click();d.get_by_role('button',name='Pause / controls',exact=True).click();d.get_by_role('button',name='Enable mouse capture',exact=True).click()
         check('denied capture explains fallback',d.locator('#toast').inner_text().startswith('Mouse capture is unavailable'))
         d.locator('#scene').focus();before=d.evaluate('window.staircase.snapshot().player.yaw');d.keyboard.down('ArrowRight');d.wait_for_timeout(120);d.keyboard.up('ArrowRight')
         check('denied capture still allows keyboard look',d.evaluate('window.staircase.snapshot().player.yaw')!=before)

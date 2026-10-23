@@ -1,6 +1,6 @@
 import {SCENES, getScene, START_SCENE} from './world.js';
 import {createState,move,look,getTarget,interact,closeDoor,restart} from './engine.js';
-import {Renderer} from './renderer.js';
+import {WebGLRenderer as Renderer} from './webgl-renderer.js';
 import {defaults,readPreferences,savePreferences} from './preferences.js';
 import {Ambience} from './audio.js';
 
@@ -10,24 +10,25 @@ const state=createState(),audio=new Ambience();
 const motionQuery=matchMedia('(prefers-reduced-motion: reduce)');
 let storage;try{storage=window.localStorage;}catch{/* Private browsing may block storage. */}
 let preferences=readPreferences(storage,motionQuery.matches);
+// Sound always needs a fresh opt-in, even if a previous visit used it.
+preferences.audio=false;
 let entered=false,paused=true,renderer=null,raf=0,lastFrame=0,dirty=true,target=null;
 let drag=null,joystickPointer=null,joystick={forward:0,strafe:0},hadPointerLock=false;
 const keys=new Set();
 let measuredFrames=0,totalRenderMs=0,maxRenderMs=0;
 let toastTimer=0;
-const titleState={...createState(),sceneId:'first-stairwell'};
-if(SCENES['first-stairwell']) titleState.player={...SCENES['first-stairwell'].spawn,pitch:0};
+const titleState=createState();
+titleState.player.pitch=.08;
 
 function scene(){return getScene(state.sceneId,state.visits[state.sceneId]||1);}
 function active(){return entered&&!paused&&!document.hidden;}
 function syncPreferences(){
   document.documentElement.dataset.reducedMotion=String(preferences.reducedMotion);
-  document.documentElement.dataset.flicker=String(preferences.flicker&&!preferences.reducedMotion);
   $('pref-audio').checked=preferences.audio;
   $('pref-motion').checked=preferences.reducedMotion;
-  $('pref-flicker').checked=preferences.flicker;
-  $('pref-flicker').disabled=preferences.reducedMotion;
+  $('pref-motion').disabled=motionQuery.matches;
   $('pref-quality').value=preferences.quality;
+  $('graphics-note').textContent=renderer?.softwareRendering?(preferences.quality==='low'?'Software graphics: smaller view, capped at 12 fps to save processor work.':'More detail uses more processor power on software graphics.'):'Low power is recommended.';
   $('sound-toggle').textContent=preferences.audio?'Sound on':'Sound off';
   $('sound-toggle').setAttribute('aria-label',preferences.audio?'Sound on':'Sound off');
   $('sound-toggle').setAttribute('aria-pressed',String(preferences.audio));
@@ -54,13 +55,14 @@ function requestFrame(){dirty=true;if(active()&&!raf){lastFrame=performance.now(
 function input(){return {forward:(keys.has('w')||keys.has('arrowup')?1:0)-(keys.has('s')||keys.has('arrowdown')?1:0)+joystick.forward,strafe:(keys.has('d')?1:0)-(keys.has('a')?1:0)+joystick.strafe,turn:(keys.has('arrowright')?1:0)-(keys.has('arrowleft')?1:0)};}
 function tick(now){
   raf=0;if(!active())return;
-  const dt=(now-lastFrame)/1000,interval=1/(preferences.quality==='low'?30:45);
+  const dt=(now-lastFrame)/1000,interval=1/(renderer?.frameRateLimit||(preferences.quality==='low'?30:45));
   if(dt<interval){raf=requestAnimationFrame(tick);return;}
   lastFrame=now;
   const controls=input(),moving=!!(controls.forward||controls.strafe||controls.turn);
-  if(moving){const old=state.sceneId;const changed=move(state,controls,Math.min(.1,dt));if(old!==state.sceneId)updateLocation();if(changed)dirty=true;}
+  let progressed=false;
+  if(moving){const old=state.sceneId;progressed=move(state,controls,Math.min(.1,dt));if(old!==state.sceneId)updateLocation();if(progressed)dirty=true;}
   if(dirty){draw();updateTarget();dirty=false;}
-  if(moving)raf=requestAnimationFrame(tick);
+  if(moving&&progressed)raf=requestAnimationFrame(tick);
 }
 function updateLocation(){
   const room=scene();$('floor-label').textContent=room.floor;$('location-label').textContent=room.name;
@@ -133,6 +135,12 @@ $('enter').addEventListener('click',()=>{
 });
 $('title-settings').addEventListener('click',openPause);$('pause-button').addEventListener('click',openPause);
 $('close-pause').addEventListener('click',resume);$('resume').addEventListener('click',resume);
+$('leave').addEventListener('click',()=>{
+  entered=false;paused=true;stop();releaseMouse();pauseDialog.close();inspection.close();
+  preferences.audio=false;syncPreferences();syncAudio();
+  $('title-screen').hidden=false;$('hud').hidden=true;$('fallback').hidden=true;
+  $('toast').textContent='';draw();$('enter').focus({preventScroll:true});
+});
 pauseDialog.addEventListener('cancel',event=>{event.preventDefault();resume();});
 $('close-inspection').addEventListener('click',resume);inspection.addEventListener('cancel',event=>{event.preventDefault();resume();});
 for(const dialog of [pauseDialog,inspection])dialog.addEventListener('keydown',event=>{
@@ -147,7 +155,7 @@ $('explore-mode').addEventListener('click',listSurroundings);
 $('fallback-explore').addEventListener('click',()=>{openPause();listSurroundings();});
 $('restart').addEventListener('click',()=>{restart(state);resume();updateLocation();updateTarget();announce('Back at reception.');requestFrame();});
 $('reset-preferences').addEventListener('click',()=>{preferences=defaults(motionQuery.matches);syncPreferences();renderer?.resize(preferences.quality);syncAudio();draw();});
-for(const [id,key] of [['pref-audio','audio'],['pref-motion','reducedMotion'],['pref-flicker','flicker']])$(id).addEventListener('change',()=>{preferences[key]=$(id).checked;syncPreferences();syncAudio();});
+for(const [id,key] of [['pref-audio','audio'],['pref-motion','reducedMotion']])$(id).addEventListener('change',()=>{preferences[key]=$(id).checked;syncPreferences();syncAudio();});
 $('pref-quality').addEventListener('change',()=>{preferences.quality=$('pref-quality').value;syncPreferences();renderer?.resize(preferences.quality);draw();});
 $('sound-toggle').addEventListener('click',()=>{preferences.audio=!preferences.audio;syncPreferences();syncAudio();});
 $('mouse-capture').addEventListener('click',async()=>{
@@ -217,11 +225,23 @@ window.addEventListener('pagehide',()=>{stop();audio.dispose();});
 // Read-only diagnostics help future maintenance; they never transmit visitor data.
 window.staircase=Object.freeze({
   snapshot:()=>structuredClone(state),
-  metrics:()=>({frames:measuredFrames,meanRenderMs:measuredFrames?+(totalRenderMs/measuredFrames).toFixed(2):0,maxRenderMs:+maxRenderMs.toFixed(2),lastRenderMs:renderer?.stats.lastRenderMs||0,polygons:renderer?.stats.polygons||0,canvasWidth:canvas.width,canvasHeight:canvas.height,quality:preferences.quality,paused,rafPending:!!raf,audioState:audio.context?.state||'not-started',heapBytes:performance.memory?.usedJSHeapSize||null})
+  metrics:()=>({frames:measuredFrames,meanRenderMs:measuredFrames?+(totalRenderMs/measuredFrames).toFixed(2):0,maxRenderMs:+maxRenderMs.toFixed(2),lastRenderMs:renderer?.stats.lastRenderMs||0,polygons:renderer?.stats.polygons||0,backend:renderer?.stats.backend||'text',gpuBufferBytes:renderer?.stats.bufferBytes||0,canvasWidth:canvas.width,canvasHeight:canvas.height,quality:preferences.quality,softwareRendering:!!renderer?.softwareRendering,frameRateLimit:renderer?.frameRateLimit||0,paused,rafPending:!!raf,audioState:audio.context?.state||'not-started',heapBytes:performance.memory?.usedJSHeapSize||null})
+});
+canvas.addEventListener('webglcontextlost',event=>{
+  event.preventDefault();paused=true;stop();renderer=null;
+  if(document.pointerLockElement)document.exitPointerLock?.();
+  if(entered){$('fallback').hidden=false;$('crosshair').hidden=true;$('touch-controls').hidden=true;}
+});
+canvas.addEventListener('webglcontextrestored',()=>{
+  try{renderer=new Renderer(canvas,{quality:preferences.quality});renderer.resize(preferences.quality);syncPreferences();draw();
+    $('fallback').hidden=true;$('crosshair').hidden=false;$('touch-controls').hidden=false;
+    // Stay paused until the visitor deliberately continues.
+    if(entered)openPause();
+  }catch{renderer=null;$('entry-note').textContent='3D is unavailable here. Text exploration is ready.';}
 });
 syncPreferences();
-try{renderer=new Renderer(canvas,{quality:preferences.quality});renderer.resize(preferences.quality);draw();}
-catch(error){console.warn('The visual view is unavailable; text exploration remains available.',error.message);renderer=null;}
+try{renderer=new Renderer(canvas,{quality:preferences.quality});renderer.resize(preferences.quality);syncPreferences();draw();}
+catch(error){console.warn('The visual view is unavailable; text exploration remains available.',error.message);renderer=null;$('entry-note').textContent='3D is unavailable here. Text exploration is ready.';}
 document.documentElement.dataset.paused='true';
 $('loading-message').hidden=true;
 $('enter').focus({preventScroll:true});

@@ -1,71 +1,75 @@
-# What has been checked
+# What has actually been checked
 
-The building has ten connected spaces. All are reachable without collecting clues or solving a puzzle. It uses a small software perspective renderer and ordinary HTML controls, not a game framework or a backend.
+This is a **local review build, not a deployed release**. The new native WebGL view was served under a GitHub Pages-style project subpath. The existing live site was inspected before the redesign; its original release has not been replaced.
 
-## Working controls
+## Final checks
 
-The automated browser checks exercise keyboard walking and turning, drag-to-look, optional captured mouse-look, pointer-lock release and denial, door opening and closing, object inspection, room changes, pause, restart, audio mute, and keyboard focus in dialogs. The semantic **Explore without aiming** controls offer another way through every room.
+| Check | Result |
+| --- | --- |
+| Dependency-free Node logic and geometry tests | 49 passed |
+| Desktop/mobile browser acceptance checks | 36 passed |
+| Focused keyboard, door, pointer, touch, audio and focus checks | 40 passed |
+| Leave, comfort defaults, unavailable graphics, actual GPU loss/restoration and mouse-capture checks | 17 passed |
+| All-room routes, repeated visits, WebGL errors and resource checks | 102 passed |
+| Screenshot capture through real UI routes | 17 Low power + 17 More detail images; no captured script or WebGL errors |
+| Selected axe scans of invitation, exploration and pause controls | Zero violations in the selected rules |
+| Whitespace/error check | `git diff --check` passed |
 
-Touch checks use Chromium’s mobile emulation and pointer events. They exercise the movement control, separate touch-look, the interaction button opening and traversing a door, portrait and landscape layouts, minimum control heights, and prevention of unintended page scrolling. A 320-pixel-wide title view was also visually checked.
+The browser checks cover actual walking and interaction, not only direct state changes. They include touch movement and look, denied mouse capture, blocked storage, offline-after-load use, reduced motion, modal focus, pause and restart. The lifecycle tests deliberately lose and restore a real WebGL context, including loss while the mouse is captured. When graphics cannot start, the entrance explains the text alternative; all rooms remain navigable without aiming.
 
-## Repeatable checks
+Independent interaction review identified captured mouse input persisting after graphics loss. Independent renderer review identified failed reflection targets being cached as ready and a vertex-shader leak on fragment compilation failure. All three were fixed with failing-then-passing regressions. Visual review also corrected occluded door openings, side-wall labels, floor materials, a false flood stripe, stair arrival angles, mounted props and an unsupported telephone.
 
-Run `npm test` for the dependency-free world, movement, projection, geometry, renderer lifecycle, and preference-storage tests. The repository’s GitHub Actions workflow runs this command on pushes and pull requests.
+## Measured low-power sample
 
-For browser tests, first serve the repository locally and install Python Playwright with a Chromium browser. Set `CHROMIUM_PATH` if Chromium is not at `/usr/bin/chromium`. These commands also accept a deployed base URL as the final argument:
-
-```bash
-python3 tests/browser_test.py http://localhost:4173/
-python3 tests/interaction_test.py http://localhost:4173/
-python3 tests/performance_test.py http://localhost:4173/
-```
-
-The optional axe accessibility scans use a local development-only copy of `axe-core`. Install it with `npm install --no-save --package-lock=false axe-core`, or set `AXE_PATH` to a local `axe.min.js`. If it is missing, the scripts report the scans as skipped. This tooling is never loaded by visitors.
-
-The browser suite also checks blocked storage, unavailable Canvas graphics, continuing exploration after the network goes offline, console errors, and failed requests. The performance suite visits every location through the actual exit controls, repeats the route, compares JavaScript heap use after garbage collection, and checks that idle and pause do not keep drawing. It records main-thread task time and moving frame counts rather than promising a frame rate on every device.
-
-Generated logs, screenshots, and measurements are kept in the ignored `.test-artifacts/` folder; they are not runtime assets.
-
-## What the resource controls do
-
-Low power is the default: at most 30 scene frames per second while moving, at most 900 backing pixels wide, and at most 550,000 backing pixels in total. More detail permits up to 45 moving frames per second and 1.2 million pixels. Device pixel ratio does not multiply those limits.
-
-There is only one requested animation frame at a time. The view stops drawing when stationary, when movement is blocked by a wall, when paused, and when the tab is hidden. Losing focus clears held keys and pauses. Optional synthesized audio is suspended while muted or paused. There are no external fonts, image downloads, analytics, remote APIs, or runtime packages.
-
-## Limits worth knowing
-
-This is intentionally a stylized 2.5D building, not a photorealistic physics simulation. Doorways and stair landings use deliberate scene transitions. The water is a restrained static visual treatment. There is no saved game; refreshing returns to reception. Preferences are stored locally when the browser permits it.
-
-Tests in this environment do not substitute for real phone hardware, Safari/iOS, or a person using a screen reader. Automated accessibility scans cannot establish complete WCAG conformance. JavaScript heap measurements do not include all browser processes, Canvas backing memory, GPU memory, or the operating system. CPU timings vary with hardware, browser, and the other tests running at the same time.
-
-## Measured release check
-
-The final local project-subpath run used Chromium at a 1280 × 800 viewport in Low power mode. It visited all ten locations and repeated the itinerary four more times through actual room-exit buttons.
+The final resource run used Chromium on Linux at a 1280 × 800 viewport. This machine provides **SwiftShader software WebGL, not a physical accelerated GPU**. Low power automatically selected a smaller 473 × 295 backing view and a 12-frame ceiling. Every location was visited through real exit buttons; the itinerary was then repeated four times.
 
 | Measurement | Observed result |
 | --- | --- |
-| Initial local load, including the test's network-idle wait | 791.43 ms |
-| Page and local assets transferred in that run | About 92 KB |
-| Mean Canvas draw time across 237 frames | 7.00 ms |
-| Slowest observed draw, including cold setup | 66.10 ms |
-| JavaScript heap after garbage collection, before repeated route | 2.21 MB |
-| JavaScript heap after garbage collection, after repeated route | 2.94 MB |
-| Heap growth over the repeated route | 0.74 MB |
-| Idle main-thread task time over 2 seconds | 0.31 ms |
-| Turning main-thread task time over 3 seconds | 846.44 ms |
-| Scene frames during that 3-second turn | 67 (configured cap: 30 per second) |
-| Backing Canvas | 900 × 562 pixels |
+| Page and local assets transferred | 123,752 bytes, about 124 KB |
+| Initial local load, including the test's network-idle wait | 823.34 ms |
+| JavaScript heap after collection, before repeated route | 2,162,800 bytes |
+| JavaScript heap after collection, after repeated route | 3,299,620 bytes |
+| Heap growth across repeated visits | 1,136,820 bytes |
+| Added scene frames over 2 stationary seconds | 0 |
+| Idle main-thread task time over 2 seconds | 0.26 ms |
+| Main-thread task time during a continuous turn | 590.13 ms over a 3,009.43 ms sample |
+| Frames in that turn sample | 31, below the 12-per-second ceiling |
+| Added paused scene frames | 0 |
+| Last room's vertex buffer | 194,880 bytes; not total GPU memory |
+| External asset requests or uncaught script errors | None |
 
-These are measurements from one shared Linux test environment, not guaranteed phone results. Drawing was inactive during the idle sample, and no frames were added during the separate paused sample. Audio was not enabled in the resource measurement. The renderer caches static lighting/material calculations; a before/after Canvas comparison was pixel-identical after that optimization.
+The earlier unrestricted software path was too processor-heavy. Reusing one tiny material texture helped, but a smaller software-only resolution and frame budget were necessary. The final processor sample is still real work, not zero-cost rendering. The deliberately softer Low power view is included in the review evidence rather than hidden behind higher-detail screenshots.
 
-The final logic suite has **26 passing tests**. Desktop/mobile and focused-interaction browser suites pass, with no uncaught JavaScript errors or failed requests in the checked desktop session. Automated axe scans on the title, exploration view, and pause dialog reported **zero violations** for their selected WCAG A/AA tags; this is not a claim of complete accessibility conformance. Independent code review found two important edge cases (pending audio resume and competing touch pointers); both were fixed with failing-then-passing regressions.
+The reported draw duration averages 3.34 ms, but that measures JavaScript/GL submission, **not completed GPU work or guaranteed frame time**. Heap figures exclude other browser processes, graphics surfaces, driver/GPU memory and the operating system. Main-thread task time is not a whole-device CPU or battery measurement. Audio was off during the resource sample.
 
-## Published and checked
+## Resource limits
 
-The implementation was pushed to `main` as commit [`ef98136`](https://github.com/melvinvarghese/Staircase-to-Nowhere/commit/ef9813616e1d0f0b314b054abfefca6c8c1e7934), preserving the initial commit and using a fast-forward merge rather than rewriting history. GitHub Pages reported a successful build for that exact commit. The [automated repository checks](https://github.com/melvinvarghese/Staircase-to-Nowhere/actions/runs/39914508766) also succeeded.
+Normal Low power has ceilings of 30 moving frames per second, 900 backing pixels wide and 550,000 pixels in area. Recognized software drivers use stricter ceilings: 12 frames, 480 pixels wide and 140,000 pixels in area. The controls explain this mode. More detail is an explicit opt-in, with ceilings of 45 frames, 1,400 pixels wide and 1.2 million pixels. Device pixel ratio does not multiply these limits.
 
-**Live site:** <https://melvinvarghese.github.io/Staircase-to-Nowhere/>
+Drawing stops while stationary, blocked by a wall, paused, hidden or left. The idle test waits for the last input-requested frame to settle before starting its sample; it also requires the animation callback to become inactive. Geometry, label atlases and reflection buffers are replaced instead of accumulating across visits. A fixed 64 × 64 material texture is shared until disposal. The flooded room alone uses an extra bounded reflection pass, reduced further in software Low power.
 
-The complete desktop/mobile browser acceptance suite was rerun against that real URL: **35 checks passed**, no uncaught JavaScript errors, no failed page requests, and no violations in the selected exploration-view and pause-dialog axe scans. The live view was also opened separately in the interactive browser; entering the building, opening its controls, and taking the accessible STAIRS route all worked. A screenshot of that published stairwell was saved as release evidence.
+## Repeat the checks
 
-Local final checks: **26 logic tests, 35 desktop/mobile browser checks, 39 focused interaction checks, and 90 route/resource checks passed**. There are no known blocking issues and no hosting settings the owner must change. The real-phone, Safari/iOS, full-screen-reader, and whole-browser-memory limits above still apply.
+Only developer tooling is needed for tests; none is loaded by visitors. Run a static HTTP server, then:
+
+```bash
+npm test
+python3 tests/browser_test.py http://localhost:4173/
+python3 tests/interaction_test.py http://localhost:4173/
+python3 tests/overhaul_test.py http://localhost:4173/
+python3 tests/performance_test.py http://localhost:4173/
+python3 tests/visual_test.py http://localhost:4173/
+python3 tests/visual_test.py http://localhost:4173/ high
+```
+
+Browser scripts need Python Playwright and Chromium. Set `CHROMIUM_PATH` if necessary. They enable software WebGL for this GPU-less test machine and explicitly require the WebGL backend, so a text-only fallback cannot silently count as a rendering test. Axe uses a local development-only `axe.min.js` supplied through `AXE_PATH` or an unsaved `axe-core` installation; missing axe is reported as skipped. It was available for the recorded scans.
+
+Logs, result JSON, full screenshots and review sheets live in the ignored `.test-artifacts/` folder. `visual/` records actual Low power; `visual-detail/` records the explicitly selected More detail option. The review sheets only resize and arrange those real screenshots; they do not repaint or generate the environment.
+
+## Limits and publication status
+
+The visual result is stylized, not photorealistic. Lighting uses inexpensive approximations, not physical soft-shadow simulation. Doorways and stair tops deliberately transition between spaces; this is not a seamlessly streamed whole building. The existing ten-location network is retained rather than reduced to fewer locations, and supporting areas remain simpler than the principal spaces.
+
+Desktop and mobile layouts were visually inspected, including portrait, landscape and a 320-pixel-wide view. This is not real-phone, Safari/iOS or full screen-reader testing, and selected axe scans do not establish complete WCAG conformance. Hardware-accelerated performance and whole-browser memory remain unmeasured; minimal resource use on every device is not promised.
+
+**Nothing was pushed, merged or deployed, and Pages settings were not changed.** GitHub Actions and a new Pages deployment were therefore not triggered. The existing live URL remains <https://melvinvarghese.github.io/Staircase-to-Nowhere/>. It does not show this overhaul. Publication requires the owner's review and explicit approval.

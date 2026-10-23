@@ -1,0 +1,68 @@
+"""Creative overhaul lifecycle regressions. Run against a local project subpath."""
+import json, os, sys
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+BASE=sys.argv[1] if len(sys.argv)>1 else 'http://127.0.0.1:4180/Staircase-to-Nowhere/'
+OUT=Path('.test-artifacts'); OUT.mkdir(exist_ok=True)
+report={'checks':[], 'errors':[]}
+def check(name,ok):
+    report['checks'].append({'name':name,'passed':bool(ok)})
+    assert ok,name
+try:
+    with sync_playwright() as p:
+        browser=p.chromium.launch(headless=True, executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox','--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
+        ctx=browser.new_context(viewport={'width':1280,'height':800},reduced_motion='reduce')
+        page=ctx.new_page();page.on('pageerror',lambda e:report['errors'].append(str(e)))
+        page.goto(BASE)
+        page.get_by_role('button',name='Enter the building',exact=True).click()
+        page.get_by_role('button',name='Pause / controls',exact=True).click()
+        leave=page.get_by_role('button',name='Leave the building',exact=True)
+        check('pause offers explicit leave action',leave.count()==1)
+        leave.click()
+        check('leave restores entrance',page.locator('#title-screen').is_visible() and not page.locator('#hud').is_visible())
+        check('leave restores entry keyboard focus',page.evaluate('document.activeElement.id')=='enter')
+        frames=page.evaluate('window.staircase.metrics().frames'); page.wait_for_timeout(350)
+        check('leave stops rendering',page.evaluate('window.staircase.metrics().frames')==frames)
+        page.get_by_role('button',name='Enter the building',exact=True).click()
+        check('re-entry remains playable',page.locator('#hud').is_visible())
+        check('real depth-tested graphics selected',page.evaluate('window.staircase.metrics().backend')=='webgl')
+        page.get_by_role('button',name='Sound off',exact=True).click()
+        page.reload();page.get_by_role('button',name='Enter the building',exact=True).click()
+        check('fresh visit never auto-enables remembered sound',page.get_by_role('button',name='Sound off',exact=True).is_visible())
+        page.get_by_role('button',name='Pause / controls',exact=True).click()
+        page.get_by_role('button',name='Enable mouse capture',exact=True).click()
+        page.wait_for_function('document.pointerLockElement?.id==="scene"')
+        page.evaluate('window.testContextLoss=document.getElementById("scene").getContext("webgl").getExtension("WEBGL_lose_context");window.testContextLoss.loseContext()')
+        page.locator('#fallback').wait_for(state='visible')
+        page.wait_for_function('!document.pointerLockElement')
+        check('graphics loss releases the captured cursor',page.evaluate('!document.pointerLockElement'))
+        check('lost graphics offers text exploration',page.locator('#fallback').is_visible())
+        page.get_by_role('button',name='Explore the building',exact=True).click()
+        page.get_by_role('button',name='Go through STAIRS',exact=True).click()
+        check('text navigation survives lost graphics',page.evaluate('window.staircase.snapshot().sceneId')=='first-stairwell')
+        page.wait_for_timeout(250)
+        page.evaluate('window.testContextLoss.restoreContext()')
+        page.wait_for_function('window.staircase.metrics().backend==="webgl"')
+        check('restored graphics await deliberate resume',page.locator('#pause-dialog').is_visible() and page.evaluate('window.staircase.metrics().paused'))
+        page.get_by_role('button',name='Continue wandering',exact=True).click()
+        page.wait_for_function('!window.staircase.metrics().rafPending')
+        check('restored view redraws and then idles',page.evaluate('window.staircase.metrics().backend')=='webgl' and not page.locator('#fallback').is_visible())
+        # OS reduce motion must override a stale opt-out saved in another session.
+        other=browser.new_context(reduced_motion='reduce')
+        other.add_init_script('localStorage.setItem("staircase.preferences.v1",JSON.stringify({audio:true,reducedMotion:false,quality:"low"}))')
+        m=other.new_page();m.goto(BASE)
+        check('OS reduced-motion wins over stored preference',m.locator('html').get_attribute('data-reduced-motion')=='true')
+        other.close()
+        fallback=browser.new_context()
+        fallback.add_init_script('HTMLCanvasElement.prototype.getContext=()=>null')
+        f=fallback.new_page();f.goto(BASE)
+        check('graphics-free entrance explains the text alternative', '3D is unavailable' in f.locator('.entry-note').inner_text())
+        f.get_by_role('button',name='Enter the building',exact=True).click()
+        check('no GPU or canvas still has text mode',f.locator('#fallback').is_visible())
+        f.get_by_role('button',name='Explore the building',exact=True).click()
+        f.get_by_role('button',name='Go through STAIRS',exact=True).click()
+        check('graphics-free room traversal works',f.evaluate('window.staircase.snapshot().sceneId')=='first-stairwell')
+        fallback.close();browser.close()
+    check('no script exceptions',not report['errors'])
+finally:
+    (OUT/'overhaul-results.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
