@@ -18,7 +18,8 @@ const keys=new Set();
 let measuredFrames=0,totalRenderMs=0,maxRenderMs=0;
 let toastTimer=0;
 const titleState=createState();
-titleState.player.pitch=.08;
+titleState.sceneId='repeating-corridor';
+titleState.player={x:2.1,z:1.7,yaw:.025,pitch:.015};
 
 function scene(){return getScene(state.sceneId,state.visits[state.sceneId]||1);}
 function active(){return entered&&!paused&&!document.hidden;}
@@ -225,22 +226,22 @@ window.addEventListener('pagehide',()=>{stop();audio.dispose();});
 // Read-only diagnostics help future maintenance; they never transmit visitor data.
 window.staircase=Object.freeze({
   snapshot:()=>structuredClone(state),
-  metrics:()=>({frames:measuredFrames,meanRenderMs:measuredFrames?+(totalRenderMs/measuredFrames).toFixed(2):0,maxRenderMs:+maxRenderMs.toFixed(2),lastRenderMs:renderer?.stats.lastRenderMs||0,polygons:renderer?.stats.polygons||0,backend:renderer?.stats.backend||'text',gpuBufferBytes:renderer?.stats.bufferBytes||0,canvasWidth:canvas.width,canvasHeight:canvas.height,quality:preferences.quality,softwareRendering:!!renderer?.softwareRendering,frameRateLimit:renderer?.frameRateLimit||0,paused,rafPending:!!raf,audioState:audio.context?.state||'not-started',heapBytes:performance.memory?.usedJSHeapSize||null})
+  metrics:()=>({frames:measuredFrames,meanRenderMs:measuredFrames?+(totalRenderMs/measuredFrames).toFixed(2):0,maxRenderMs:+maxRenderMs.toFixed(2),lastRenderMs:renderer?.stats.lastRenderMs||0,polygons:renderer?.stats.polygons||0,backend:renderer?.stats.backend||'text',materialsReady:!!renderer?.materialsReady,gpuBufferBytes:renderer?.stats.bufferBytes||0,canvasWidth:canvas.width,canvasHeight:canvas.height,quality:preferences.quality,softwareRendering:!!renderer?.softwareRendering,frameRateLimit:renderer?.frameRateLimit||0,paused,rafPending:!!raf,audioState:audio.context?.state||'not-started',heapBytes:performance.memory?.usedJSHeapSize||null})
 });
 canvas.addEventListener('webglcontextlost',event=>{
-  event.preventDefault();paused=true;stop();renderer=null;
+  event.preventDefault();paused=true;stop();renderer?.dispose();renderer=null;
   if(document.pointerLockElement)document.exitPointerLock?.();
   if(entered){$('fallback').hidden=false;$('crosshair').hidden=true;$('touch-controls').hidden=true;}
 });
 canvas.addEventListener('webglcontextrestored',()=>{
-  try{renderer=new Renderer(canvas,{quality:preferences.quality});renderer.resize(preferences.quality);syncPreferences();draw();
+  try{renderer=new Renderer(canvas,{quality:preferences.quality,onMaterialsReady:()=>{if(!document.hidden)draw();}});renderer.resize(preferences.quality);syncPreferences();draw();
     $('fallback').hidden=true;$('crosshair').hidden=false;$('touch-controls').hidden=false;
     // Stay paused until the visitor deliberately continues.
     if(entered)openPause();
   }catch{renderer=null;$('entry-note').textContent='3D is unavailable here. Text exploration is ready.';}
 });
 syncPreferences();
-try{renderer=new Renderer(canvas,{quality:preferences.quality});renderer.resize(preferences.quality);syncPreferences();draw();}
+try{renderer=new Renderer(canvas,{quality:preferences.quality,onMaterialsReady:()=>{if(!document.hidden)draw();}});renderer.resize(preferences.quality);syncPreferences();draw();}
 catch(error){console.warn('The visual view is unavailable; text exploration remains available.',error.message);renderer=null;$('entry-note').textContent='3D is unavailable here. Text exploration is ready.';}
 document.documentElement.dataset.paused='true';
 $('loading-message').hidden=true;

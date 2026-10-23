@@ -1,11 +1,17 @@
 import { buildSceneGeometry, sceneEyeHeight } from './renderer.js';
+import { bakeLighting } from './lighting.js';
+import { HOTEL_FRAGMENT_SHADER } from './hotel-shader.js';
 
 const LOW = { width: 900, area: 550000 };
 const HIGH = { width: 1400, area: 1200000 };
-const SOFTWARE_LOW = { width: 480, area: 140000 };
+const SOFTWARE_LOW = { width: 400, area: 90000 };
 const NEAR = 0.16, FAR = 90, STRIDE = 14;
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
 const started = () => globalThis.performance?.now?.() ?? Date.now();
+
+export function cameraFocal(width,height) {
+  return Math.max(Math.min(width,height)*.94,height*.72);
+}
 
 export function backingSize(cssWidth, cssHeight, quality='low', software=false) {
   const limit=quality==='high'?HIGH:(software?SOFTWARE_LOW:LOW);
@@ -42,13 +48,13 @@ export function packSceneGeometry(polygons=[]) {
   for(const polygon of polygons) {
     const points=polygon.points||[]; if(points.length<3) continue;
     const normal=faceNormal(points), color=rgb(polygon.color), emissive=Number(polygon.emissive)||0;
-    const surface=polygon.surface==='water'?1:polygon.surface==='atlas'?2:0;
+    const surface=({water:1,atlas:2,wallpaper:3,carpet:4,wood:5,plaster:6,stone:7,metal:8,fabric:9})[polygon.surface]||0;
     const ao=Number.isFinite(polygon.ao)?clamp(polygon.ao,0,1):1;
     for(let i=1;i<points.length-1;i++) {
       const triangle=[points[0],points[i],points[i+1]],indices=[0,i,i+1];
       for(let j=0;j<3;j++) {
         const p=triangle[j],uv=polygon.uvs?.[indices[j]]||[0,0];
-        values.push(Number(p.x)||0,Number(p.y)||0,Number(p.z)||0,...normal,...color,emissive,surface,ao,uv[0],uv[1]);
+        values.push(Number(p.x)||0,Number(p.y)||0,Number(p.z)||0,...normal,...color,emissive,surface,polygon.irradiance?.[indices[j]]??ao,uv[0],uv[1]);
         vertexCount++;
       }
     }
@@ -65,7 +71,7 @@ export function surfaceNoisePixels(){
 const VERTEX_SHADER = `
 attribute vec3 aPosition; attribute vec3 aNormal; attribute vec3 aColor;
 attribute float aEmissive; attribute float aSurface; attribute float aAO; attribute vec2 aUV;
-uniform vec3 uEye; uniform vec2 uViewport; uniform float uFocal; uniform float uNear; uniform float uFar;
+uniform mediump vec3 uEye; uniform vec2 uViewport; uniform float uFocal; uniform float uNear; uniform float uFar;
 uniform float uYaw; uniform float uPitch; uniform mediump float uReflect;
 varying vec3 vWorld; varying vec3 vNormal; varying vec3 vColor; varying float vEmissive;
 varying float vSurface; varying float vAO; varying float vDepth; varying vec2 vUV;
@@ -82,30 +88,7 @@ void main(){
   vWorld=world; vNormal=normal; vColor=aColor; vEmissive=aEmissive; vSurface=aSurface; vAO=aAO; vDepth=z; vUV=aUV;
 }`;
 
-const FRAGMENT_SHADER = `
-precision mediump float;
-uniform vec3 uHaze; uniform vec3 uGrade; uniform vec4 uLights[8]; uniform int uLightCount; uniform sampler2D uGrain; uniform sampler2D uAtlas; uniform sampler2D uReflection; uniform mediump float uReflect; uniform float uReflectionReady; uniform vec2 uScreenSize;
-varying vec3 vWorld; varying vec3 vNormal; varying vec3 vColor; varying float vEmissive;
-varying float vSurface; varying float vAO; varying float vDepth; varying vec2 vUV;
-void main(){
-  if(uReflect>0.5 && vWorld.y> -0.04)discard;
-  vec3 n=normalize(vNormal); if(!gl_FrontFacing)n=-n;
-  vec2 surface=abs(n.y)>.5?vWorld.xz:(abs(n.x)>.5?vWorld.zy:vWorld.xy);
-  float grain=(texture2D(uGrain,surface*.18).r-.5)*.10+(texture2D(uGrain,surface*.012).g-.5)*.16;
-  vec3 base=vColor*(1.0+grain);
-  float up=abs(n.y); float ambient=0.44+0.19*max(n.y,0.0)+0.035*abs(n.x+n.z);
-  float groundAO=mix(0.72,1.0,smoothstep(0.02,0.65,max(vWorld.y,0.0)));
-  float ao=mix(groundAO,1.0,up)*vAO;
-  float direct=0.0;
-  for(int i=0;i<8;i++){if(i<uLightCount){vec3 lamp=uLights[i].xyz;if(uReflect>0.5)lamp.y=-lamp.y;vec3 delta=lamp-vWorld;float d=length(delta);vec3 l=delta/max(d,0.001);direct+=uLights[i].w*max(dot(n,l),0.0)/(1.0+d*d*0.19);}}
-  if(vSurface>0.5&&vSurface<1.5){float ripple=texture2D(uGrain,vWorld.xz*.024).b;if(uReflect<0.5 && uReflectionReady>0.5){vec2 drift=vec2(ripple-0.5,texture2D(uGrain,vWorld.zx*.024).g-0.5)*0.008;vec3 reflected=texture2D(uReflection,gl_FragCoord.xy/uScreenSize+drift).rgb;base=mix(base,reflected,0.48);}base=mix(base,vec3(0.43,0.49,0.46),0.06+0.04*ripple);base*=0.96+0.04*ripple;}
-  if(vSurface>1.5){vec4 ink=texture2D(uAtlas,vUV);base=mix(base,ink.rgb,ink.a);}
-  float light=ambient+direct+vEmissive;
-  vec3 lit=base*light*ao*uGrade;
-  lit+=vColor*vEmissive*0.20;
-  float haze=clamp((vDepth-10.0)/58.0,0.0,0.78); haze=haze*haze*(3.0-2.0*haze);
-  gl_FragColor=vec4(mix(lit,uHaze,haze),1.0);
-}`;
+const FRAGMENT_SHADER = HOTEL_FRAGMENT_SHADER;
 
 function compile(gl,type,source) {
   const shader=gl.createShader(type); gl.shaderSource(shader,source); gl.compileShader(shader);
@@ -115,12 +98,14 @@ function compile(gl,type,source) {
 function program(gl) {
   let vs=null,fs=null,p=null;
   try{
-    vs=compile(gl,gl.VERTEX_SHADER,VERTEX_SHADER);fs=compile(gl,gl.FRAGMENT_SHADER,FRAGMENT_SHADER);p=gl.createProgram();
+    const gradients=!!(gl.getExtension?.('OES_standard_derivatives')&&gl.getExtension?.('EXT_shader_texture_lod'));
+    const prefix=gradients?'#extension GL_OES_standard_derivatives : enable\n#extension GL_EXT_shader_texture_lod : enable\n#define HOTEL_GRADIENTS\n':'';
+    vs=compile(gl,gl.VERTEX_SHADER,VERTEX_SHADER);fs=compile(gl,gl.FRAGMENT_SHADER,prefix+FRAGMENT_SHADER);p=gl.createProgram();
     gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);
     if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(`WebGL program link failed: ${gl.getProgramInfoLog(p)||'unknown link error'}`);
     const attributes={};for(const name of ['aPosition','aNormal','aColor','aEmissive','aSurface','aAO','aUV'])attributes[name]=gl.getAttribLocation(p,name);
-    const uniforms={};for(const name of ['uEye','uViewport','uFocal','uNear','uFar','uYaw','uPitch','uReflect','uHaze','uGrade','uLights[0]','uLightCount','uAtlas','uReflection','uScreenSize','uGrain','uReflectionReady'])uniforms[name]=gl.getUniformLocation(p,name);
-    return {handle:p,attributes,uniforms};
+    const uniforms={};for(const name of ['uEye','uViewport','uFocal','uNear','uFar','uYaw','uPitch','uReflect','uHaze','uGrade','uLights[0]','uLightCount','uAtlas','uReflection','uScreenSize','uGrain','uReflectionReady','uMaterials','uNormals','uMaterialsReady','uEconomy'])uniforms[name]=gl.getUniformLocation(p,name);
+    return {handle:p,attributes,uniforms,gradients};
   }catch(error){if(p)gl.deleteProgram(p);throw error;}
   finally{if(vs)gl.deleteShader(vs);if(fs)gl.deleteShader(fs);}
 }
@@ -128,16 +113,16 @@ function program(gl) {
 const GRADES={ lobby:[1.08,1.01,0.88], room:[1.07,.98,.88], corridor:[1.04,.99,.91], service:[.88,1.02,.91], 'service-corridor':[.88,1.02,.91], flooded:[.87,1.01,1.02], 'impossible-staircase':[.91,.99,1.04] };
 
 export class WebGLRenderer {
-  constructor(canvas,{quality='low'}={}) {
+  constructor(canvas,{quality='low',onMaterialsReady=()=>{}}={}) {
     if(!canvas||typeof canvas.getContext!=='function') throw new Error('WebGLRenderer requires a canvas.');
-    this.canvas=canvas; this.quality=quality==='high'?'high':'low'; this.disposed=false; this.geometry=null; this.cacheKey=''; this.buffer=null; this.vertexCount=0; this.atlas=null; this.texture=null; this.lights=[]; this.reflectionTexture=null; this.reflectionFramebuffer=null; this.reflectionDepth=null; this.reflectionSize=''; this.needsReflection=false;this.grainTexture=null;
-    const attrs={alpha:false,antialias:false,depth:true,stencil:false,preserveDrawingBuffer:false,powerPreference:'low-power'};
+    this.canvas=canvas; this.quality=quality==='high'?'high':'low'; this.disposed=false; this.geometry=null; this.cacheKey=''; this.buffer=null; this.vertexCount=0; this.atlas=null; this.texture=null; this.lights=[]; this.reflectionTexture=null; this.reflectionFramebuffer=null; this.reflectionDepth=null; this.reflectionSize=''; this.needsReflection=false;this.grainTexture=null;this.materialTexture=null;this.normalTexture=null;this.materialsReady=false;
+    const attrs={alpha:false,antialias:true,depth:true,stencil:false,preserveDrawingBuffer:false,powerPreference:'low-power'};
     this.gl=canvas.getContext('webgl',attrs)||canvas.getContext('experimental-webgl',attrs);
     if(!this.gl||typeof this.gl.createShader!=='function') throw new Error('WebGL is unavailable; graphics could not be initialized.');
     this.softwareRendering=false;
     try{const ext=this.gl.getExtension('WEBGL_debug_renderer_info');if(ext)this.softwareRendering=/swiftshader|llvmpipe|softpipe|software/i.test(this.gl.getParameter(ext.UNMASKED_RENDERER_WEBGL));}catch{/* Capability detection is optional. */}
     this.stats={frames:0,lastRenderMs:0,polygons:0,backend:'webgl',bufferBytes:0};
-    try { this.program=program(this.gl); this.makeGrainTexture(); this.resize(this.quality); }
+    try { this.program=program(this.gl); this.makeGrainTexture(); this.resize(this.quality); this.loadMaterials(onMaterialsReady); }
     catch(error) { this.dispose(); throw error; }
   }
   resize(quality=this.quality) {
@@ -146,7 +131,7 @@ export class WebGLRenderer {
     const size=backingSize(this.canvas.clientWidth||this.canvas.width||640,this.canvas.clientHeight||this.canvas.height||400,this.quality,this.softwareRendering);
     if(this.canvas.width!==size.width)this.canvas.width=size.width;
     if(this.canvas.height!==size.height)this.canvas.height=size.height;
-    this.width=size.width;this.height=size.height;this.focal=Math.min(this.width,this.height)*0.94;
+    this.width=size.width;this.height=size.height;this.focal=cameraFocal(this.width,this.height);
     this.gl.viewport(0,0,this.width,this.height);
   }
   makeGrainTexture(){
@@ -154,6 +139,26 @@ export class WebGLRenderer {
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,64,64,0,gl.RGBA,gl.UNSIGNED_BYTE,surfaceNoisePixels());
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.REPEAT);
+  }
+  loadMaterials(onReady) {
+    const gl=this.gl;
+    const make=()=>{const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([128,128,128,255]));return t;};
+    this.materialTexture=make();this.normalTexture=make();
+    if(typeof Image==='undefined')return;
+    const load=(url,texture)=>new Promise((resolve,reject)=>{
+      const image=new Image();image.onload=()=>{
+        if(this.disposed){resolve();return;}
+        gl.bindTexture(gl.TEXTURE_2D,texture);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,image);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,this.program.gradients?gl.LINEAR_MIPMAP_LINEAR:gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.generateMipmap(gl.TEXTURE_2D);
+        const ext=gl.getExtension('EXT_texture_filter_anisotropic');if(ext)gl.texParameterf(gl.TEXTURE_2D,ext.TEXTURE_MAX_ANISOTROPY_EXT,Math.min(4,gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+        resolve();
+      };image.onerror=reject;image.src=new URL(url,import.meta.url).href;
+    });
+    Promise.all([load('../assets/materials/atlas.jpg',this.materialTexture),load('../assets/materials/atlas-normal.jpg',this.normalTexture)]).then(()=>{
+      if(!this.disposed){this.materialsReady=true;onReady();}
+    }).catch(()=>{if(!this.disposed)console.warn('Hotel materials could not load; the untextured view remains available.');});
   }
   clearSceneResources() {
     const gl=this.gl;
@@ -208,7 +213,9 @@ export class WebGLRenderer {
     this.needsReflection=String(scene?.kind||'').toLowerCase().includes('flood')||/flood/i.test(String(scene?.floor||''));
     this.lights=allPolys.filter(p=>p.light).slice(0,8).map(p=>[p.light.x,p.light.y,p.light.z,(p.light.power||1)*0.22]);
     this.makeAtlas(this.geometry.texts,polys);
-    const packed=packSceneGeometry(polys); this.vertexCount=packed.vertexCount; this.stats.polygons=packed.vertexCount/3;
+    const lamps=allPolys.filter(p=>p.light).slice(0,8).map(p=>p.light);
+    const lit=bakeLighting(polys,scene,lamps,{spacing:this.quality==='low'?1.3:.8});
+    const packed=packSceneGeometry(lit); this.vertexCount=packed.vertexCount; this.stats.polygons=packed.vertexCount/3;
     const gl=this.gl;this.buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);gl.bufferData(gl.ARRAY_BUFFER,packed.data,gl.STATIC_DRAW);
     this.stats.bufferBytes=packed.data.byteLength;
     if(this.atlas){this.texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,this.atlas);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);}
@@ -216,7 +223,7 @@ export class WebGLRenderer {
   render(scene,state={},options={}) {
     if(this.disposed||!this.gl)return;
     const start=started(),doors=state.openDoors||{}, doorBits=(scene?.doors||[]).map(d=>doors[`${scene.id}:${d.id}`]?1:0).join('');
-    const key=`${scene?.id}|${state.visits?.[scene?.id]||1}|${doorBits}|${scene?.kind}|${scene?.width}|${scene?.depth}|${scene?.height}`;
+    const key=`${this.quality}|${scene?.id}|${state.visits?.[scene?.id]||1}|${doorBits}|${scene?.kind}|${scene?.width}|${scene?.depth}|${scene?.height}`;
     if(key!==this.cacheKey){this.uploadScene(scene,state);this.cacheKey=key;}
     const gl=this.gl,u=this.program.uniforms,a=this.program.attributes,p=this.program.handle;
     gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);gl.clearColor(.105,.12,.11,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(p);gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);
@@ -225,8 +232,8 @@ export class WebGLRenderer {
     const player=state.player||{},eye={x:Number(player.x)||0,y:sceneEyeHeight(scene,state),z:Number(player.z)||0};
     const reflected=String(scene?.kind||'').toLowerCase().includes('flood');
     gl.uniform3f(u.uEye,eye.x,eye.y,eye.z);gl.uniform1f(u.uNear,NEAR);gl.uniform1f(u.uFar,FAR);gl.uniform1f(u.uYaw,Number(player.yaw)||0);gl.uniform1f(u.uPitch,Number(player.pitch)||0);
-    const kind=String(scene?.kind||'').toLowerCase(),grade=GRADES[kind]|| (kind.includes('service')?[.88,1.02,.91]:kind.includes('flood')?[.87,1.01,1.02]:[1,1,1]), haze=kind.includes('service')?[.20,.24,.21]:kind.includes('flood')?[.20,.24,.23]:[.24,.23,.20];
-    gl.uniform3fv(u.uGrade,grade);gl.uniform3fv(u.uHaze,haze);gl.uniform1i(u.uLightCount,this.lights.length);gl.uniform1i(u.uAtlas,0);gl.uniform1i(u.uReflection,1);gl.uniform1i(u.uGrain,2);gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,this.grainTexture);
+    const kind=String(scene?.kind||'').toLowerCase(),grade=GRADES[kind]|| (kind.includes('service')?[.88,1.02,.91]:kind.includes('flood')?[.87,1.01,1.02]:[1,1,1]), haze=kind.includes('service')?[.045,.064,.055]:kind.includes('flood')?[.055,.075,.075]:[.065,.064,.055];
+    gl.uniform3fv(u.uGrade,grade);gl.uniform3fv(u.uHaze,haze);gl.uniform1i(u.uLightCount,this.lights.length);gl.uniform1i(u.uMaterials,3);gl.uniform1i(u.uNormals,4);gl.uniform1f(u.uMaterialsReady,this.materialsReady?1:0);gl.uniform1f(u.uEconomy,this.softwareRendering&&this.quality==='low'?1:0);gl.activeTexture(gl.TEXTURE3);gl.bindTexture(gl.TEXTURE_2D,this.materialTexture);gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,this.normalTexture);gl.uniform1i(u.uAtlas,0);gl.uniform1i(u.uReflection,1);gl.uniform1i(u.uGrain,2);gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,this.grainTexture);
     const flat=new Float32Array(32);this.lights.forEach((l,i)=>flat.set(l,i*4));gl.uniform4fv(u['uLights[0]'],flat);
     if(this.texture){gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.texture);}
     gl.uniform1f(u.uReflectionReady,0);
@@ -236,7 +243,7 @@ export class WebGLRenderer {
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.texture);
       gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,this.texture);
       const [rw,rh]=this.reflectionSize.split('x').map(Number);gl.bindFramebuffer(gl.FRAMEBUFFER,this.reflectionFramebuffer);gl.viewport(0,0,rw,rh);gl.clearColor(.12,.14,.13,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-      gl.uniform2f(u.uViewport,rw,rh);gl.uniform1f(u.uFocal,Math.min(rw,rh)*.94);gl.uniform1f(u.uReflect,1);gl.drawArrays(gl.TRIANGLES,0,this.vertexCount);
+      gl.uniform2f(u.uViewport,rw,rh);gl.uniform1f(u.uFocal,rh*this.focal/this.height);gl.uniform1f(u.uReflect,1);gl.drawArrays(gl.TRIANGLES,0,this.vertexCount);
       gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,this.width,this.height);gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,this.reflectionTexture);gl.uniform1f(u.uReflectionReady,1);
     }else{gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,this.texture||this.grainTexture);}
     gl.uniform2f(u.uViewport,this.width,this.height);gl.uniform2f(u.uScreenSize,this.width,this.height);gl.uniform1f(u.uFocal,this.focal);gl.uniform1f(u.uReflect,0);
@@ -246,7 +253,7 @@ export class WebGLRenderer {
   }
   dispose(){
     if(this.disposed)return;this.disposed=true;
-    if(this.gl){this.clearSceneResources();if(this.grainTexture)this.gl.deleteTexture(this.grainTexture);this.grainTexture=null;if(this.program?.handle)this.gl.deleteProgram(this.program.handle);}
+    if(this.gl){this.clearSceneResources();if(this.grainTexture)this.gl.deleteTexture(this.grainTexture);this.grainTexture=null;if(this.materialTexture)this.gl.deleteTexture(this.materialTexture);if(this.normalTexture)this.gl.deleteTexture(this.normalTexture);this.materialTexture=null;this.normalTexture=null;if(this.program?.handle)this.gl.deleteProgram(this.program.handle);}
     this.program=null;this.gl=null;this.geometry=null;this.canvas=null;this.cacheKey='';
   }
 }

@@ -4,7 +4,7 @@ An abandoned hotel outside ordinary time. The reception desk is too far away. Th
 
 Walk at your own pace through a quiet first-person architectural experience. There are no enemies, jump scares, required puzzles, or objectives to complete. The small mystery is optional.
 
-**Experience:** [Staircase to Nowhere](https://melvinvarghese.github.io/Staircase-to-Nowhere/). Publication was approved by the owner after the original `main` base was confirmed unchanged. See the [deployment history](https://github.com/melvinvarghese/Staircase-to-Nowhere/actions/workflows/pages/pages-build-deployment) for release status; the approval record itself is not deployment evidence.
+**Experience:** [Staircase to Nowhere](https://melvinvarghese.github.io/Staircase-to-Nowhere/). See the [deployment history](https://github.com/melvinvarghese/Staircase-to-Nowhere/actions/workflows/pages/pages-build-deployment) for release status.
 
 ## Enter and wander
 
@@ -30,15 +30,15 @@ Sound is **off on every fresh visit**, including after a reload. Opt in using **
 
 The operating system's reduced-motion preference takes priority over stored settings. There is no camera bobbing, automatic camera travel, rapid flashing or animated post-processing. You can also turn on **Reduce motion** in the controls. Moving and looking still respond directly to your input.
 
-**Low power** is the default graphics mode. Rendering has a 30-frame-per-second ceiling while moving, a 900-pixel width ceiling and a 550,000-pixel backing-area ceiling. **More detail** permits up to 45 frames per second and 1.2 million pixels. Device pixel ratio does not multiply these limits. When a known software graphics driver is detected, Low power automatically drops to a 12-frame ceiling, at most 480 pixels wide and 140,000 pixels in area. The controls explain this softer view; More detail is still an explicit opt-in. These are ceilings, not guaranteed frame rates.
+**Low power** is the default graphics mode. Rendering has a 30-frame-per-second ceiling while moving, a 900-pixel width ceiling and a 550,000-pixel backing-area ceiling. **More detail** permits up to 45 frames per second and 1.2 million pixels. Device pixel ratio does not multiply these limits. When a known software graphics driver is detected, Low power automatically drops to a 12-frame ceiling, at most 400 pixels wide and 90,000 pixels in area. Software-only Low power also omits normal-detail and specular shader work, keeping the local material colors and baked lighting. The controls explain this softer view; More detail is still an explicit opt-in. These are ceilings, not guaranteed frame rates.
 
-The scene stops drawing completely when idle, paused or hidden. The renderer keeps one current room mesh, not an ever-growing cache. No engine download, external font, photograph, video, analytics, account, backend, paid API or database is required. Preferences stay in local browser storage when available. There is no saved game: refreshing resets exploration. **Start again at reception** clears open doors and clues; **Leave the building** returns to the entrance screen without resetting the current visit.
+The scene stops drawing completely when idle, paused or hidden. The renderer keeps one current room mesh, not an ever-growing cache. No external runtime asset service, font, video, analytics, account, backend, paid API or database is required. Two locally hosted 1024-pixel material atlases total about 491 KiB compressed. Their source and redistribution terms are in [asset credits](assets/LICENSES.md). Preferences stay in local browser storage when available. There is no saved game: refreshing resets exploration. **Start again at reception** clears open doors and clues; **Leave the building** returns to the entrance screen without resetting the current visit.
 
 ## What makes the view different
 
-A small original WebGL renderer gives the environment real perspective, depth-tested surfaces and a first-person camera. Architectural meshes, procedural surface variation, static pools of light and distance haze replace the old uniformly outlined software view. The world is stylized, not photorealistic. Floodwater uses a bounded mirrored view with static ripple distortion rather than a fluid simulation.
+A small original WebGL renderer gives the environment real perspective, depth-tested surfaces and a first-person camera. The cinematic material pipeline combines local patterned wallpaper, woven carpet, walnut and aged plaster with normal detail, restrained varnish/stone highlights, distance extinction and lens shading. Molded wainscoting, pilasters, door arches, recessed panels, brass hardware and hanging fixtures provide modeled depth. Static diffuse light and soft occlusion from solid furnishings are baked into subdivided mesh vertices when a room changes, never traced on every movement frame. Low power uses a coarser bake to reduce transition work and mesh memory. This is a more materially convincing low-poly hotel, not a claim of photorealism. Floodwater uses a bounded mirrored view with static ripple distortion rather than a fluid simulation.
 
-The design concentrates on proportions, material differences and composed sightlines instead of adding more rooms. The existing ten-location network and accessible exploration controls are preserved.
+The opening shows a live, depth-rendered guest corridor rather than a flat background image or interface card. Portrait camera perspective is capped to avoid an excessively stretched ceiling/floor view. The design concentrates on proportions, material differences and composed sightlines instead of adding more rooms. The existing ten-location network and accessible exploration controls are preserved.
 
 ## Project map
 
@@ -52,7 +52,11 @@ js/renderer.js         Shared architectural geometry and legacy projection helpe
 js/webgl-renderer.js   Depth-tested renderer, materials and world-space labels
 js/audio.js            Optional browser-generated ambience
 js/preferences.js      Local comfort preferences
-assets/                Small favicon; no downloaded runtime media
+js/hotel-shader.js     Material-specific shading and seamless atlas sampling
+js/lighting.js         Bounded static irradiance / soft-occlusion bake
+assets/materials/     Local color and normal atlases (CC0-derived/original)
+assets/LICENSES.md    Material source links and redistribution terms
+tools/build-materials.py  Optional offline atlas regeneration
 tests/                 Logic, browser, accessibility and resource checks
 ```
 
@@ -77,6 +81,8 @@ python3 tests/browser_test.py http://localhost:4173/
 python3 tests/interaction_test.py http://localhost:4173/
 python3 tests/performance_test.py http://localhost:4173/
 python3 tests/overhaul_test.py http://localhost:4173/
+python3 tests/cinematic_test.py http://localhost:4173/
+python3 tests/material_loss_test.py http://localhost:4173/
 python3 tests/visual_test.py http://localhost:4173/
 # Optional-detail comparison, saved separately:
 python3 tests/visual_test.py http://localhost:4173/ high

@@ -30,7 +30,8 @@ test('scene geometry remains finite and bounded for room, door, furniture and st
   const geometry = built.polygons;
   assert.deepEqual(built.texts.map(item => item.text), ['North']);
   assert.ok(geometry.length > 80);
-  assert.ok(geometry.length < 1000);
+  // Intentional carved wall panels, door architraves and furniture stay within the 25k-triangle scene budget.
+  assert.ok(geometry.reduce((sum, polygon) => sum + polygon.points.length - 2, 0) < 25000);
   for (const polygon of geometry) {
     assert.ok(polygon.points.length >= 3);
     assert.ok(polygon.points.every(p => Number.isFinite(p.x + p.y + p.z)));

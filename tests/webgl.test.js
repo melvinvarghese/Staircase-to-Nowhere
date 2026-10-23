@@ -67,7 +67,7 @@ test('side-wall plaques preserve a zero x direction and stay parallel to the wal
 
 test('software graphics use a smaller low-power backing buffer without reducing opt-in detail',()=>{
  const low=backingSize(1280,800,'low',true),high=backingSize(1280,800,'high',true);
- assert.ok(low.width<=480&&low.width*low.height<=140000);
+ assert.ok(low.width<=400&&low.width*low.height<=90000);
  assert.ok(high.width>480);
 });
 
