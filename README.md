@@ -88,7 +88,7 @@ python3 tests/performance_test.py
 python3 tests/interaction_test.py
 ```
 
-For the optional automated accessibility scans, install `axe-core` as development tooling (`npm install --no-save --package-lock=false axe-core`), or set `AXE_PATH` to an existing local `axe.min.js`. Without it, the scripts explicitly report those scans as skipped. Those scripts and their browser tooling are for development only, not visitors. Real mobile devices and screen-reader hardware have not yet been tested. See [`docs/TESTING.md`](docs/TESTING.md) for verified results when that report is available; this README does not claim test or performance results.
+For the optional automated accessibility scans, install `axe-core` as development tooling (`npm install --no-save --package-lock=false axe-core`), or set `AXE_PATH` to an existing local `axe.min.js`. Without it, the scripts explicitly report those scans as skipped. Those scripts and their browser tooling are for development only, not visitors. Real mobile devices and screen-reader hardware have not yet been tested. See [`docs/TESTING.md`](docs/TESTING.md) for the measured results, regression coverage, and honest testing limits.
 
 ### Add a room or clue
 
@@ -100,7 +100,7 @@ You can reuse this prompt with Cue or another coding assistant:
 
 ## Publishing status
 
-The repository is configured for GitHub Pages to publish from the root of its `main` branch. The intended address is <https://melvinvarghese.github.io/Staircase-to-Nowhere/>. **Do not assume that it is live or verified yet:** check [`docs/TESTING.md`](docs/TESTING.md) for the final deployment result before sharing it as a published experience.
+The repository is configured for GitHub Pages to publish from the root of its `main` branch. The live experience is <https://melvinvarghese.github.io/Staircase-to-Nowhere/>. GitHub Pages built the implementation commit successfully, and the deployed site passed the desktop/mobile browser acceptance suite. See [`docs/TESTING.md`](docs/TESTING.md) for the verified revision, test coverage, and measured resource use.
 
 ## What this is—and is not
 

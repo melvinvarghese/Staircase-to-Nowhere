@@ -27,7 +27,7 @@ Scene: `{id,name,floor,kind,width,depth,height,spawn:{x,z,yaw},colors:{wall,lowe
 - [x] UI: test title/entry, keyboard movement and look, settings, pause/focus, restart, touch portrait/landscape, alternative exploration, denied pointer lock, storage failure, missing graphics.
 - [x] Run axe accessibility scans; keyboard walkthrough; console/network checks; offline-after-load checks. Measure actual render cost, idle frame count, load weight and heap after repeated traversal. Do not claim real-phone or screen-reader hardware tests.
 - [x] Beginner README: playing, controls, architecture, Pages, adding rooms, reusable Cue prompt, known limitations, test evidence. No invented license.
-- [x] Review diff and independent code review; fix important findings with regression tests. Commit on feat/liminal-hotel, fetch main, fast-forward only when safe, push without force; verify Pages build SHA and live entry/interactions (publication check pending). Set repository description/topics.
+- [x] Review diff and independent code review; fix important findings with regression tests. Commit on feat/liminal-hotel, fetch main, fast-forward only when safe, push without force; verify Pages build SHA and live entry/interactions. Set repository description/topics.
 
 ## Risk review
 

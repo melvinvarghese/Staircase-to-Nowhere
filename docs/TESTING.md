@@ -60,4 +60,12 @@ These are measurements from one shared Linux test environment, not guaranteed ph
 
 The final logic suite has **26 passing tests**. Desktop/mobile and focused-interaction browser suites pass, with no uncaught JavaScript errors or failed requests in the checked desktop session. Automated axe scans on the title, exploration view, and pause dialog reported **zero violations** for their selected WCAG A/AA tags; this is not a claim of complete accessibility conformance. Independent code review found two important edge cases (pending audio resume and competing touch pointers); both were fixed with failing-then-passing regressions.
 
-Publication is pending the final push and live-site verification.
+## Published and checked
+
+The implementation was pushed to `main` as commit [`ef98136`](https://github.com/melvinvarghese/Staircase-to-Nowhere/commit/ef9813616e1d0f0b314b054abfefca6c8c1e7934), preserving the initial commit and using a fast-forward merge rather than rewriting history. GitHub Pages reported a successful build for that exact commit. The [automated repository checks](https://github.com/melvinvarghese/Staircase-to-Nowhere/actions/runs/39914508766) also succeeded.
+
+**Live site:** <https://melvinvarghese.github.io/Staircase-to-Nowhere/>
+
+The complete desktop/mobile browser acceptance suite was rerun against that real URL: **35 checks passed**, no uncaught JavaScript errors, no failed page requests, and no violations in the selected exploration-view and pause-dialog axe scans. The live view was also opened separately in the interactive browser; entering the building, opening its controls, and taking the accessible STAIRS route all worked. A screenshot of that published stairwell was saved as release evidence.
+
+Local final checks: **26 logic tests, 35 desktop/mobile browser checks, 39 focused interaction checks, and 90 route/resource checks passed**. There are no known blocking issues and no hosting settings the owner must change. The real-phone, Safari/iOS, full-screen-reader, and whole-browser-memory limits above still apply.
