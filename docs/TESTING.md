@@ -1,6 +1,6 @@
 # What has actually been checked
 
-This is a **local review build, not a deployed release**. The new native WebGL view was served under a GitHub Pages-style project subpath. The existing live site was inspected before the redesign; its original release has not been replaced.
+The results below document the **local review build** at the time these checks were run. The new native WebGL view was served under a GitHub Pages-style project subpath. At the time of inspection, the existing live site showed its original release; that observation is historical and is not a current live check.
 
 ## Final checks
 
@@ -72,4 +72,4 @@ The visual result is stylized, not photorealistic. Lighting uses inexpensive app
 
 Desktop and mobile layouts were visually inspected, including portrait, landscape and a 320-pixel-wide view. This is not real-phone, Safari/iOS or full screen-reader testing, and selected axe scans do not establish complete WCAG conformance. Hardware-accelerated performance and whole-browser memory remain unmeasured; minimal resource use on every device is not promised.
 
-**Nothing was pushed, merged or deployed, and Pages settings were not changed.** GitHub Actions and a new Pages deployment were therefore not triggered. The existing live URL remains <https://melvinvarghese.github.io/Staircase-to-Nowhere/>. It does not show this overhaul. Publication requires the owner's review and explicit approval.
+At the time these checks were recorded, nothing had been pushed, merged or deployed, and Pages settings had not been changed. Those statements describe that historical review snapshot, not the current authorization status. On 2026-10-23, the owner approved normal, non-force publication, conditional on `main` remaining at `3f5bbda5bb79059be4783be0417f0ac7c13a3b43`; a fresh fetch confirmed that base. This approval does not establish that publication has completed or that the live site has been verified. The experience URL is <https://melvinvarghese.github.io/Staircase-to-Nowhere/>; publication and live verification are reported separately from these local measurements, with deployment results in the repository’s Pages build history.

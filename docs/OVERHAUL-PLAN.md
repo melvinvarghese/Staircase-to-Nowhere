@@ -34,3 +34,7 @@ Compared with expanding the software painter, WebGL fixes face-order artifacts a
 ## Final review decisions
 
 The old ten-location route graph is retained to preserve working exploration; the brief’s smaller-room-count preference is not fully realized. Supporting rooms remain more spare than the principal compositions. Known software graphics now use a deliberately softer 12-fps Low power path, with separately captured optional-detail views. The actual resource and accessibility results, including hardware limits, are recorded in TESTING.md. Independent mouse-capture and GPU-cleanup findings have regression tests.
+
+## Publication authorization update (2026-10-23)
+
+The publication hold above records the original brief and is historical. The owner has since explicitly approved normal, non-force publication, conditional on `main` remaining at `3f5bbda5bb79059be4783be0417f0ac7c13a3b43`; a fresh fetch confirmed that base. No force-push is authorized. This approval is not evidence that publication or live verification has completed; those outcomes remain to be reported separately. The reviewed runtime commit `ae39062fddfd3bcc4d6cae8707a48e3bd9efadf5` is preserved unchanged.

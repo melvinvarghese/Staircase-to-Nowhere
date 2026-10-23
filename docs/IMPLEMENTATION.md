@@ -1,8 +1,8 @@
 # Inside the redesigned hotel
 
-## Review only
+## Review and publication status
 
-This work is on the local branch `review/creative-overhaul`, based on the original `main` release `3f5bbda5bb79059be4783be0417f0ac7c13a3b43`. No push, merge, Pages-setting change or deployment is authorized until the owner reviews and explicitly approves publication. The old implementation and its release evidence remain in Git history.
+This work is on the local branch `review/creative-overhaul`, based on the original `main` release `3f5bbda5bb79059be4783be0417f0ac7c13a3b43`. The earlier review-only restriction records the status before publication approval. On 2026-10-23, the owner explicitly approved normal, non-force publication, conditional on `main` remaining at that base; a fresh fetch confirmed the base. The reviewed runtime commit `ae39062fddfd3bcc4d6cae8707a48e3bd9efadf5` remains unchanged. The approval was recorded before publication or live verification and is not, by itself, evidence of deployment. Current deployment results are available in the repository’s Pages build history. The old implementation and its release evidence remain in Git history.
 
 ## Artistic direction
 

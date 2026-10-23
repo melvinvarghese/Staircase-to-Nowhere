@@ -4,7 +4,7 @@ An abandoned hotel outside ordinary time. The reception desk is too far away. Th
 
 Walk at your own pace through a quiet first-person architectural experience. There are no enemies, jump scares, required puzzles, or objectives to complete. The small mystery is optional.
 
-**This redesign is a local review version, not a published release.** The [existing live site](https://melvinvarghese.github.io/Staircase-to-Nowhere/) still shows the original version. Publication requires the owner's explicit approval; nothing in this branch changes GitHub Pages settings.
+**Experience:** [Staircase to Nowhere](https://melvinvarghese.github.io/Staircase-to-Nowhere/). Publication was approved by the owner after the original `main` base was confirmed unchanged. See the [deployment history](https://github.com/melvinvarghese/Staircase-to-Nowhere/actions/workflows/pages/pages-build-deployment) for release status; the approval record itself is not deployment evidence.
 
 ## Enter and wander
 
