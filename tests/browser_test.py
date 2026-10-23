@@ -1,0 +1,148 @@
+"""Local browser acceptance tests; requires Python Playwright and a running HTTP server.
+Run: python3 tests/browser_test.py [base URL]
+No test tooling is sent to visitors.
+"""
+import json, os, sys, time
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+
+BASE = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:4173/'
+OUT = Path('.test-artifacts'); OUT.mkdir(exist_ok=True)
+report = {'base': BASE, 'checks': [], 'errors': [], 'failed_requests': []}
+def check(name, condition):
+    report['checks'].append({'name':name, 'passed':bool(condition)})
+    assert condition, name
+
+def run():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'), args=['--no-sandbox'])
+        context = browser.new_context(viewport={'width':1440,'height':900}, reduced_motion='reduce')
+        page = context.new_page()
+        page.on('pageerror', lambda err: report['errors'].append(str(err)))
+        page.on('requestfailed', lambda req: report['failed_requests'].append(req.url))
+        page.goto(BASE, wait_until='networkidle')
+        check('title loads', page.get_by_role('heading',name='THE STAIRCASE TO NOWHERE').is_visible())
+        check('motion defaults to OS preference', page.locator('html').get_attribute('data-reduced-motion') == 'true')
+        page.screenshot(path=str(OUT/'desktop-title.png'))
+        page.get_by_role('button',name='ENTER THE BUILDING',exact=True).click()
+        check('entry starts the experience', page.locator('#hud').is_visible())
+        page.locator('#scene').focus()
+        before = page.evaluate('window.staircase.snapshot()')
+        page.keyboard.down('w'); page.wait_for_timeout(450); page.keyboard.up('w')
+        after = page.evaluate('window.staircase.snapshot()')
+        check('keyboard walking changes position', before['player'] != after['player'])
+        page.keyboard.down('ArrowRight'); page.wait_for_timeout(350); page.keyboard.up('ArrowRight')
+        check('keyboard turning works', after['player']['yaw'] != page.evaluate('window.staircase.snapshot().player.yaw'))
+        page.mouse.move(850,350); page.mouse.down(); page.mouse.move(980,390,steps=8); page.mouse.up()
+        check('drag mouse-look works without pointer lock', page.evaluate('window.staircase.snapshot().player.pitch') != 0)
+        page.wait_for_function('!window.staircase.metrics().rafPending')
+        idle_before = page.evaluate('window.staircase.metrics().frames'); page.wait_for_timeout(1200)
+        check('idle stops canvas rendering', page.evaluate('window.staircase.metrics().frames') == idle_before)
+        page.keyboard.press('Escape')
+        check('Escape opens pause', page.locator('#pause-dialog').is_visible())
+        paused = page.evaluate('window.staircase.snapshot()')
+        page.keyboard.press('w'); page.wait_for_timeout(150)
+        check('pause freezes movement', page.evaluate('window.staircase.snapshot().player') == paused['player'])
+        page.get_by_role('button',name='Explore without aiming',exact=True).click()
+        check('accessible exploration lists exits', page.locator('#route-list button').count() >= 2)
+        check('accessible exploration describes scene', len(page.locator('#room-description').inner_text()) > 30)
+        page.locator('#route-list button').first.click()
+        check('accessible exit navigation changes location', page.evaluate('window.staircase.snapshot().sceneId') != 'entrance')
+        check('accessible traversal resumes view', not page.locator('#pause-dialog').is_visible())
+        page.get_by_role('button',name='Pause / controls',exact=True).click()
+        page.get_by_label('Ambient sound').check()
+        page.get_by_role('button',name='Continue wandering',exact=True).click()
+        check('audio toggle works', page.get_by_role('button',name='Sound on',exact=True).is_visible())
+        page.get_by_role('button',name='Sound on',exact=True).click()
+        check('audio can mute', page.get_by_role('button',name='Sound off',exact=True).is_visible())
+        page.get_by_role('button',name='Pause / controls',exact=True).click()
+        page.get_by_role('button',name='Start again at reception',exact=True).click()
+        check('restart returns to entrance', page.evaluate('window.staircase.snapshot().sceneId') == 'entrance')
+        page.screenshot(path=str(OUT/'desktop-interior.png'))
+        offline_before=page.evaluate('window.staircase.snapshot().player.z')
+        context.set_offline(True)
+        page.keyboard.down('w'); page.wait_for_timeout(200); page.keyboard.up('w')
+        check('continues offline after load', page.evaluate('window.staircase.snapshot().player.z') != offline_before)
+        context.set_offline(False)
+        report['metrics'] = page.evaluate('window.staircase.metrics()')
+        report['resources'] = page.evaluate('performance.getEntriesByType("resource").map(r=>({name:r.name,bytes:r.transferSize,duration:r.duration}))')
+        # Automated accessibility checks use a local, development-only copy of axe.
+        axe_path = Path(os.environ.get('AXE_PATH', 'node_modules/axe-core/axe.min.js'))
+        if not axe_path.exists(): axe_path=Path('.test-artifacts/axe.min.js')
+        if axe_path.exists():
+            page.add_script_tag(path=str(axe_path))
+            for state in ['interior','pause']:
+                if state == 'pause': page.get_by_role('button',name='Pause / controls',exact=True).click()
+                result = page.evaluate('async()=>await axe.run(document,{runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21aa"]}})')
+                report['axe_'+state] = [{'id':v['id'],'impact':v['impact'],'nodes':[n['target'] for n in v['nodes']]} for v in result['violations']]
+                check('axe '+state+' no violations', not report['axe_'+state])
+        else: report['axeSkipped']='Install development-only axe-core or set AXE_PATH to run accessibility scans.'
+        context.close()
+        mobile = browser.new_context(viewport={'width':390,'height':844},is_mobile=True,has_touch=True,device_scale_factor=2)
+        m = mobile.new_page(); m.goto(BASE,wait_until='networkidle')
+        check('mobile title fits viewport',m.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+        m.get_by_role('button',name='ENTER THE BUILDING',exact=True).click()
+        check('mobile movement control visible',m.locator('#joystick').is_visible())
+        check('mobile pause control target large enough',m.get_by_role('button',name='Pause / controls',exact=True).bounding_box()['height']>=44)
+        before=m.evaluate('window.staircase.snapshot().player')
+        # Dispatch pointer lifecycle to exercise the same controls used by a touchscreen.
+        m.locator('#joystick').dispatch_event('pointerdown',{'pointerId':1,'pointerType':'touch','clientX':82,'clientY':720,'bubbles':True})
+        m.locator('#joystick').dispatch_event('pointermove',{'pointerId':1,'pointerType':'touch','clientX':82,'clientY':680,'bubbles':True})
+        m.wait_for_timeout(300)
+        m.locator('#joystick').dispatch_event('pointerup',{'pointerId':1,'pointerType':'touch','bubbles':True})
+        check('touch joystick moves player',m.evaluate('window.staircase.snapshot().player')!=before)
+        before=m.evaluate('window.staircase.snapshot().player.yaw')
+        m.locator('#scene').dispatch_event('pointerdown',{'pointerId':2,'pointerType':'touch','clientX':230,'clientY':320,'bubbles':True})
+        m.locator('#scene').dispatch_event('pointermove',{'pointerId':2,'pointerType':'touch','clientX':300,'clientY':340,'bubbles':True})
+        m.locator('#scene').dispatch_event('pointerup',{'pointerId':2,'pointerType':'touch','bubbles':True})
+        check('touch-drag looks around',m.evaluate('window.staircase.snapshot().player.yaw')!=before)
+        before=m.evaluate('window.staircase.snapshot().player.yaw')
+        m.locator('#scene').dispatch_event('pointerdown',{'pointerId':10,'pointerType':'touch','clientX':220,'clientY':320,'bubbles':True})
+        m.locator('#scene').dispatch_event('pointerdown',{'pointerId':11,'pointerType':'touch','clientX':250,'clientY':320,'bubbles':True})
+        m.locator('#scene').dispatch_event('pointercancel',{'pointerId':11,'pointerType':'touch','bubbles':True})
+        m.locator('#scene').dispatch_event('pointermove',{'pointerId':10,'pointerType':'touch','clientX':280,'clientY':320,'bubbles':True})
+        m.locator('#scene').dispatch_event('pointerup',{'pointerId':10,'pointerType':'touch','bubbles':True})
+        check('unrelated touch cancellation preserves active look',m.evaluate('window.staircase.snapshot().player.yaw')!=before)
+        ring=m.locator('.joystick-ring').bounding_box();x=ring['x']+ring['width']/2;y=ring['y']+ring['height']/2-30
+        for pointer in [20,21]:m.locator('#joystick').dispatch_event('pointerdown',{'pointerId':pointer,'pointerType':'touch','clientX':x,'clientY':y,'bubbles':True})
+        m.locator('#joystick').dispatch_event('pointerup',{'pointerId':21,'pointerType':'touch','bubbles':True})
+        before=m.evaluate('window.staircase.snapshot().player');m.wait_for_timeout(200)
+        check('second joystick finger cannot steal the active gesture',m.evaluate('window.staircase.snapshot().player')!=before)
+        m.locator('#joystick').dispatch_event('pointerup',{'pointerId':20,'pointerType':'touch','bubbles':True})
+
+        check('mobile active experience does not scroll',m.evaluate('document.documentElement.scrollHeight<=innerHeight+1'))
+        m.get_by_role('button',name='Pause / controls',exact=True).click()
+        m.get_by_role('button',name='Start again at reception',exact=True).click()
+        ring=m.locator('.joystick-ring').bounding_box();x=ring['x']+ring['width']/2;y=ring['y']+ring['height']/2-35
+        m.locator('#joystick').dispatch_event('pointerdown',{'pointerId':3,'pointerType':'touch','clientX':x,'clientY':y,'bubbles':True})
+        m.wait_for_timeout(4000)
+        m.locator('#joystick').dispatch_event('pointerup',{'pointerId':3,'pointerType':'touch','bubbles':True})
+        m.wait_for_timeout(100)
+        check('mobile interact button visible and large enough',m.locator('#interact').is_visible() and m.locator('#interact').bounding_box()['height']>=44)
+        m.locator('#interact').tap()
+        check('mobile button opens door',any(m.evaluate('window.staircase.snapshot().openDoors').values()))
+        m.locator('#interact').tap()
+        check('mobile button traverses open door',m.evaluate('window.staircase.snapshot().sceneId')!='entrance')
+        m.screenshot(path=str(OUT/'mobile-portrait.png'))
+        m.set_viewport_size({'width':844,'height':390}); m.wait_for_timeout(200)
+        check('mobile landscape controls fit',m.locator('#joystick').bounding_box()['y']>=0)
+        m.screenshot(path=str(OUT/'mobile-landscape.png'))
+        # Denied storage must not stop entry.
+        blocked=browser.new_context()
+        blocked.add_init_script('Object.defineProperty(window,"localStorage",{get(){throw new Error("Blocked storage")}})')
+        b=blocked.new_page(); b.goto(BASE); b.get_by_role('button',name='ENTER THE BUILDING',exact=True).click()
+        check('blocked storage still playable',b.locator('#hud').is_visible())
+        blocked.close()
+        fallback=browser.new_context()
+        fallback.add_init_script('HTMLCanvasElement.prototype.getContext=()=>null')
+        f=fallback.new_page(); f.goto(BASE); f.get_by_role('button',name='ENTER THE BUILDING',exact=True).click()
+        check('no graphics offers exploration fallback',f.locator('#fallback').is_visible())
+        fallback.close(); mobile.close(); browser.close()
+    check('no JavaScript errors',not report['errors'])
+    check('no failed page requests',not report['failed_requests'])
+
+try:
+    run()
+finally:
+    (OUT/'browser-results.json').write_text(json.dumps(report,indent=2))
+    print(json.dumps(report,indent=2))

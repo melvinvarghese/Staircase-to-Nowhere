@@ -1,0 +1,11 @@
+{
+  "name": "the-staircase-to-nowhere",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A quiet, lightweight hotel that remembers itself incorrectly. An atmospheric exploration experience for GitHub Pages.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "serve": "python3 -m http.server 4173"
+  }
+}
